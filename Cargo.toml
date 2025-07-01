@@ -1,0 +1,8 @@
+[package]
+name = "reasy"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+winit = "0.30.11"
+egui = "0.31.1"
