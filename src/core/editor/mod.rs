@@ -1,2 +1,2 @@
 pub(crate) mod editor;
-pub(crate) mod editor_layout;
+pub(crate) mod layout;

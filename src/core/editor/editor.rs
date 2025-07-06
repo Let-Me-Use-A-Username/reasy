@@ -8,7 +8,7 @@ use egui_wgpu::Renderer;
 
 use crate::core::renderer::backend::WgpuState;
 use crate::event::{self, UserEvent};
-use crate::core::editor::editor_layout::{create_tree, Pane, TreeBehavior};
+use crate::core::editor::layout::{create_tree, Pane, TreeBehavior};
 
 
 
@@ -60,16 +60,20 @@ impl ApplicationHandler<UserEvent> for EditorWindow{
                         1,
                         false
                     );
-
-                    //Create Egui Editor layout
-                    let tree = create_tree();
                     
                     self.window = Some(window);
                     self.wgpu_state = Some(wgpu_state);
                     self.egui_winit_state = Some(state);
                     self.egui_context = Some(egui_context);
                     self.egui_renderer = Some(egui_renderer);
-                    self.egui_layout = Some(tree);
+                
+                    //Create Egui Editor layout
+                    if let Ok(tree) = create_tree(){
+                        self.egui_layout = Some(tree);
+                    }
+                    else{
+                        event_loop.exit();
+                    }
                 },
                 Err(err) => {
                     eprintln!("Error creating window: {:?}", err);

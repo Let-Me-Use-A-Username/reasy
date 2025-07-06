@@ -1,11 +1,13 @@
 
 # Current
+### Utils - Io
+- Sort `DirectoryEntry` before returning.
+- Test `DirectoryEntry` to see if full directory depth is captured.
+- Add parameter to show hidden files
+
 ### Editor - FileTree
-- Import directory blueprint from IO
-    - Initially as a string to verify Directory reading(IO) works.
-    - **IMPORTANT**: Very likely that FileTree will need a different `directory_elements` type in order to implement draggable.
-        - Might also be able to handle via `WindowEvent` and hot-reloading the `FileTree`
-- Implement file moving via drag and drop
+- Directories inside directories are recognized as files.
+- Implement file moving and importing via drag and drop
 
 <br>
 <br>
