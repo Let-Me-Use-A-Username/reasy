@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path};
+use std::{collections::{BTreeMap, HashMap}, path::Path};
 
 use egui_tiles::{Tiles, Tree, UiResponse};
 
@@ -8,7 +8,7 @@ use crate::utils::{error::EditorIoError, io::{self, DirectoryEntry}};
 #[derive(Debug, Clone)]
 pub(crate) struct UiDirectory{
     //Element name, Option shows whether element is directory.
-    elements: HashMap<String, Option<Vec<String>>>,
+    elements: BTreeMap<String, Option<Vec<String>>>,
     //Shows whether or not a `folder` is expanded.
     is_expanded: HashMap<String, bool>
 }
@@ -94,9 +94,12 @@ impl TreeBehavior{
     fn render_file_tree(&mut self, ui: &mut egui::Ui, directory: &mut UiDirectory) -> UiResponse{
         ui.heading("File Tree");
         ui.separator();
-        
+
+        let elements = directory.elements.keys().collect::<Vec<&String>>();
+
         egui::ScrollArea::vertical().show(ui, |ui| {
-            for (element_name, children) in &directory.elements{
+            for element_name in elements{
+                let children = directory.elements.get(element_name).unwrap();
 
                 if children.is_none(){
                     ui.indent(format!("indent_{}", element_name), |ui| {
@@ -286,7 +289,7 @@ pub(crate) fn create_tree() -> Result<egui_tiles::Tree<Pane>, EditorIoError> {
     }
 
     let directory: UiDirectory = {
-        let mut elements: HashMap<String, Option<Vec<String>>> = HashMap::new();
+        let mut elements: BTreeMap<String, Option<Vec<String>>> = BTreeMap::new();
         let mut is_expanded: HashMap<String, bool> = HashMap::new();
 
         for entry in current_directory.unwrap(){
@@ -298,16 +301,22 @@ pub(crate) fn create_tree() -> Result<egui_tiles::Tree<Pane>, EditorIoError> {
                 },
                 DirectoryEntry::Directory(dir) => {
                     let dir_name = dir.father.file_name().into_string();
-                    let dir_children = dir.children.iter()
+                    let mut dir_children = dir.children;
+                    
+                    dir_children.sort();
+
+                    let sort_children = dir_children.iter()
                         .map(|entry| {
                             entry.get_file_name()
                         })
                         .collect::<Vec<String>>();
-                    elements.insert(dir_name.clone().unwrap_or("Unknown".to_string()), Some(dir_children)); 
+                    
+                    elements.insert(dir_name.clone().unwrap_or("Unknown".to_string()), Some(sort_children)); 
                     is_expanded.insert(dir_name.unwrap_or("Unknown".to_string()), false);
                 }
             }
         }
+
         UiDirectory { 
             elements: elements, 
             is_expanded: is_expanded 

@@ -39,6 +39,7 @@ pub(crate) fn read_directory(path: &Path) -> Result<Vec<DirectoryEntry>, EditorI
                                             father: entry_unwraped,
                                             children: child_dir
                                         };
+
                                         directory_tree.push(DirectoryEntry::Directory(dir_blueprint));
                                     }
                                 }
@@ -71,7 +72,80 @@ impl DirectoryEntry{
             DirectoryEntry::Directory(directory_blueprint) => directory_blueprint.get_file_name(),
         }
     }
+
+    fn is_dir(&self) -> bool {
+        matches!(self, DirectoryEntry::Directory(_))
+    }
+
+    fn classify_char(c: char) -> (u8, char) {
+        // Define class rank:
+        // 0: lowercase
+        // 1: uppercase
+        // 2: digit
+        // 3: other (special chars)
+        let class = match c {
+            'a'..='z' => 0,
+            'A'..='Z' => 1,
+            '0'..='9' => 2,
+            _ => 3,
+        };
+        (class, c)
+    }
+
+    fn compare_names(a: &str, b: &str) -> Ordering {
+        let mut a_chars = a.chars();
+        let mut b_chars = b.chars();
+
+        loop {
+            match (a_chars.next(), b_chars.next()) {
+                (Some(ac), Some(bc)) => {
+                    let ac_key = Self::classify_char(ac);
+                    let bc_key = Self::classify_char(bc);
+                    let ord = ac_key.cmp(&bc_key);
+                    if ord != Ordering::Equal {
+                        return ord;
+                    }
+                }
+                (None, Some(_)) => return Ordering::Less, // a is shorter
+                (Some(_), None) => return Ordering::Greater, // b is shorter
+                (None, None) => return Ordering::Equal,
+            }
+        }
+    }
+
+    pub(crate) fn sort_entries(entries: &mut Vec<DirectoryEntry>){
+        entries.sort(); // uses Ord we defined
+
+        for entry in entries {
+            if let DirectoryEntry::Directory(blueprint) = entry {
+                Self::sort_entries(&mut blueprint.children); // sort recursively
+            }
+        }
+    }
 }
+
+impl PartialEq for DirectoryEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.is_dir() == other.is_dir() && self.get_file_name() == other.get_file_name()
+    }
+}
+impl Eq for DirectoryEntry {}
+
+impl PartialOrd for DirectoryEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for DirectoryEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self.is_dir(), other.is_dir()) {
+            (true, false) => Ordering::Less,
+            (false, true) => Ordering::Greater,
+            _ => Self::compare_names(&self.get_file_name(), &other.get_file_name()),
+        }
+    }
+}
+
 
 
 #[derive(Debug)]
