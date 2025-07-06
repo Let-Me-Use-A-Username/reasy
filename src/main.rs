@@ -4,13 +4,11 @@ use std::sync::Arc;
 use winit::event_loop::{ControlFlow, EventLoopProxy};
 use winit::{event_loop::EventLoop};
 
-mod editor;
+mod core;
+mod utils;
 mod event;
-mod backend;
-mod panel_tree;
 
-use editor::EditorWindow;
-
+use crate::core::editor::editor::EditorWindow;
 use crate::event::UserEvent;
 
 

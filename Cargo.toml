@@ -7,7 +7,6 @@ edition = "2021"
 winit = "0.30.11"       # Window manager
 egui = "0.31.1"         # Immediate UI
 egui_tiles = "0.12.0"   # Layout helper for editor
-egui_dock = "0.16.0"    # Docking helper for editor
 egui-winit = "0.31.1"   # State translator winit->egui
 egui-wgpu = "0.31.1"    # Renderer
 wgpu = "24.0.5"         # Renderer
