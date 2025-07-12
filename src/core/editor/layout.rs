@@ -1,24 +1,18 @@
-use std::{collections::{BTreeMap, HashMap}, path::Path};
+use std::{collections::HashMap};
 
 use egui_tiles::{Tiles, Tree, UiResponse};
 
-use crate::utils::{error::EditorIoError, io::{self, DirectoryEntry}};
+use crate::{core::editor::objects::flat_tree::{FlatTree, TreeBuilder}, utils::{error::EditorIoError}};
 
 
 #[derive(Debug, Clone)]
 pub(crate) struct UiDirectory{
-    //Element name, Option shows whether element is directory.
-    elements: BTreeMap<String, Option<Vec<String>>>,
-    //Shows whether or not a `folder` is expanded.
-    is_expanded: HashMap<String, bool>
+    elements: FlatTree,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) enum PaneType{
     FileTree{
-        // directory_elements: Vec<(String, Vec<String>)>,
-        // expanded_folders: HashMap<String, bool>,
-        // files: Vec<String>
         directory: UiDirectory
     },
     Inspector{
@@ -53,89 +47,78 @@ impl Pane{
 pub(crate) struct TreeBehavior {}
 
 impl TreeBehavior{
-    // fn render_file_tree(&mut self, ui: &mut egui::Ui, folders: &mut Vec<(String, Vec<String>)>, expanded_folders: &mut HashMap<String, bool>, files: &mut Vec<String>) -> UiResponse{
-    //     ui.heading("File Tree");
-    //     ui.separator();
-        
-    //     egui::ScrollArea::vertical().show(ui, |ui| {
-    //         for (folder_name, folder_files) in folders {
-    //             let is_expanded = expanded_folders.get(folder_name).copied().unwrap_or(false);
-                
-    //             ui.horizontal(|ui| {
-    //                 let expand_icon = if is_expanded { "▼" } else { "▶" };
-    //                 if ui.button(expand_icon).clicked() {
-    //                     expanded_folders.insert(folder_name.to_string(), !is_expanded);
-    //                 }
-    //                 ui.label(format!("📁 {}", folder_name));
-    //             });
-                
-    //             if is_expanded {
-    //                 ui.indent(format!("indent_{}", folder_name), |ui| {
-    //                     for file in folder_files {
-    //                         ui.horizontal(|ui| {
-    //                             ui.add_space(10.0);
-                                
-    //                             if ui.selectable_label(false, format!("📄 {}", file)).clicked() {
-    //                                 // Only add if not already present to prevent duplicates
-    //                                 let selection = format!("Selected: {}/{}", folder_name, file);
-                                    
-    //                                 if !files.contains(&selection) {
-    //                                     files.push(selection);
-    //                                 }
-    //                             }
-    //                         });
-    //                     }
-    //                 });
-    //             }
-    //         }
-    //     });
-    //     UiResponse::None
-    // }
     fn render_file_tree(&mut self, ui: &mut egui::Ui, directory: &mut UiDirectory) -> UiResponse{
+        let visible_items = directory.elements.get_visible_items();
+        let mut toggled_dirs = Vec::new();
+
         ui.heading("File Tree");
         ui.separator();
 
-        let elements = directory.elements.keys().collect::<Vec<&String>>();
-
         egui::ScrollArea::vertical().show(ui, |ui| {
-            for element_name in elements{
-                let children = directory.elements.get(element_name).unwrap();
+            for element in visible_items{
+                let element_name = element.entry.name.clone();
+                let is_expanded = element.visible;
 
-                if children.is_none(){
-                    ui.indent(format!("indent_{}", element_name), |ui| {
-                        ui.add_space(10.0);
-                        
-                        let _ = ui.selectable_label(false, format!("📄 {}", element_name));
-                    });
-                }
-                else{
-                    let is_expanded = *directory.is_expanded.get(element_name).unwrap_or(&false);
-                    let expand_icon = if is_expanded { "▼" } else { "▶" };
+                if element.entry.is_dir{
+                    let expand_icon = if is_expanded{
+                        "▼"
+                    } else {
+                        "▶"
+                    };
 
                     ui.horizontal(|ui| {    
                         ui.label(format!("📁 {}", element_name));
 
                         if ui.button(expand_icon).clicked() {
-                            directory.is_expanded.entry(element_name.to_string())
-                                .and_modify(|expanded| *expanded = !*expanded)
-                                .or_insert(false);
+                            toggled_dirs.push(element.id);
                         }
                     });
-
-                    if is_expanded {
-                        ui.indent(format!("indent_{}", element_name), |ui| {
-                            for file in children.as_ref().unwrap() {
-                                ui.horizontal(|ui| {
-                                    ui.add_space(10.0);
-                                    
-                                    let _ = ui.selectable_label(false, format!("📄 {}", file));
-                                });
-                            }
-                        });
-                    }
+                }
+                else{
+                    ui.indent(format!("indent_{}", element_name), |ui| {
+                        let _ = ui.selectable_label(false, format!("📄 {}", element_name));
+                    });
                 }
             }
         });
+
+        toggled_dirs.iter()
+            .for_each(|id| {
+                directory.elements.toggle_visibility(id);
+            });
+
+        // egui::ScrollArea::vertical().show(ui, |ui| {
+        //     for element in visible_elements{
+        //         let element_name = element.entry.get_file_name();
+        //         let is_expanded = tree.is_directory_expanded(&element_name);
+
+        //         if element.is_dir{
+        //             let expand_icon = if is_expanded{
+        //                 "▼"
+        //             } else {
+        //                 "▶"
+        //             };
+
+        //             ui.horizontal(|ui| {    
+        //                 ui.label(format!("📁 {}", element_name));
+
+        //                 if ui.button(expand_icon).clicked() {
+        //                     toggled_dirs.push(element_name);
+        //                 }
+        //             });
+        //         }
+        //         else{
+        //             ui.indent(format!("indent_{}", element_name), |ui| {
+        //                 let _ = ui.selectable_label(false, format!("📄 {}", element_name));
+        //             });
+        //         }
+        //     }
+        // });
+
+        // toggled_dirs.iter()
+        //     .for_each(|name| {
+        //         tree.toggle_directory(&name);
+        //     });
 
         UiResponse::None
     }
@@ -251,11 +234,7 @@ impl egui_tiles::Behavior<Pane> for TreeBehavior {
 
     fn pane_ui(&mut self, ui: &mut egui::Ui, _tile_id: egui_tiles::TileId, pane: &mut Pane) -> egui_tiles::UiResponse {
         match &mut pane.pane_type{
-            // PaneType::FileTree { directory_elements, expanded_folders, files } => {
-            //     self.render_file_tree(ui, directory_elements, expanded_folders, files)
-            // },
             PaneType::FileTree { directory} => {
-                //self.render_file_tree(ui, directory_elements, expanded_folders, files)
                 self.render_file_tree(ui, directory)
             },
             PaneType::Inspector { variables, new_key, new_value } => {
@@ -276,60 +255,18 @@ impl egui_tiles::Behavior<Pane> for TreeBehavior {
 ///Entry point for initializing and retrieving the Layout tree.
 pub(crate) fn create_tree() -> Result<egui_tiles::Tree<Pane>, EditorIoError> {
     let mut tiles = Tiles::default();
-    
-    // let tree_folders = Vec::from([
-    //     ("src".to_string(), vec!["main.rs".to_string(), "lib.rs".to_string(), "utils.rs".to_string()]),
-    //     ("assets".to_string(), vec!["icon.png".to_string(), "config.toml".to_string()]),
-    //     ("docs".to_string(), vec!["README.md".to_string(), "CHANGELOG.md".to_string()]),
-    // ]);
-    let current_directory = io::read_directory(Path::new("."));
 
-    if current_directory.is_err(){
-        return Err(current_directory.unwrap_err().into())
-    }
+    let mut tree_builder = TreeBuilder::init()?;
+    let _ = tree_builder.build()?;
 
     let directory: UiDirectory = {
-        let mut elements: BTreeMap<String, Option<Vec<String>>> = BTreeMap::new();
-        let mut is_expanded: HashMap<String, bool> = HashMap::new();
-
-        for entry in current_directory.unwrap(){
-            match entry{
-                DirectoryEntry::File(file) => {
-                    let file_name = file.file_name().into_string();
-                    
-                    elements.insert(file_name.unwrap_or("Unknown".to_string()), None);
-                },
-                DirectoryEntry::Directory(dir) => {
-                    let dir_name = dir.father.file_name().into_string();
-                    let mut dir_children = dir.children;
-                    
-                    dir_children.sort();
-
-                    let sort_children = dir_children.iter()
-                        .map(|entry| {
-                            entry.get_file_name()
-                        })
-                        .collect::<Vec<String>>();
-                    
-                    elements.insert(dir_name.clone().unwrap_or("Unknown".to_string()), Some(sort_children)); 
-                    is_expanded.insert(dir_name.unwrap_or("Unknown".to_string()), false);
-                }
-            }
-        }
-
         UiDirectory { 
-            elements: elements, 
-            is_expanded: is_expanded 
+            elements: tree_builder.get_tree()
         }
     };
 
     let file_tree = tiles.insert_pane(Pane::new(
         0,
-        // PaneType::FileTree {
-        //     directory_elements: tree_folders,
-        //     expanded_folders: HashMap::new(),
-        //     files: Vec::new(),
-        //},
         PaneType::FileTree { directory: directory },
         "File Tree",
     ));

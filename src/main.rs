@@ -1,4 +1,6 @@
 use once_cell::sync::OnceCell;
+use std::env;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use winit::event_loop::{ControlFlow, EventLoopProxy};
@@ -13,7 +15,7 @@ use crate::event::UserEvent;
 
 
 static USER_EVENT_PROXY: OnceCell<Arc<EventLoopProxy<UserEvent>>> = OnceCell::new();
-
+static PROJECT_ROOT_DIR: OnceCell<Arc<PathBuf>> = OnceCell::new();
 fn main() {
     //Main event dispatcher for OS calls
     let event_loop_status = EventLoop::<UserEvent>::with_user_event().build();
@@ -29,6 +31,7 @@ fn main() {
             // input, and uses significantly less power/CPU time than ControlFlow::Poll.
             //event_loop.set_control_flow(ControlFlow::Wait);
             let _ = USER_EVENT_PROXY.set(Arc::new(event_loop.create_proxy()));
+            let _ = PROJECT_ROOT_DIR.set(Arc::new(env::current_dir().unwrap_or(PathBuf::from("."))));
 
             let mut app = EditorWindow::default();
             let result = event_loop.run_app(&mut app);
