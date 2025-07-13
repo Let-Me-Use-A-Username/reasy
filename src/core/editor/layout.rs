@@ -48,78 +48,51 @@ pub(crate) struct TreeBehavior {}
 
 impl TreeBehavior{
     fn render_file_tree(&mut self, ui: &mut egui::Ui, directory: &mut UiDirectory) -> UiResponse{
-        let visible_items = directory.elements.get_visible_items();
         let mut toggled_dirs = Vec::new();
 
         ui.heading("File Tree");
         ui.separator();
 
         egui::ScrollArea::vertical().show(ui, |ui| {
-            for element in visible_items{
-                let element_name = element.entry.name.clone();
-                let is_expanded = element.visible;
-
-                if element.entry.is_dir{
-                    let expand_icon = if is_expanded{
-                        "▼"
-                    } else {
-                        "▶"
-                    };
-
-                    ui.horizontal(|ui| {    
+            let visible_items = directory.elements.get_visible_items();
+            
+            for element in visible_items {
+                let element_name = element.file_entry.name.clone();
+                let is_expanded = element.expanded; 
+                let depth = element.depth;
+                
+                let indent_amount = depth * 20;
+                
+                ui.horizontal(|ui| {
+                    // Indentation based on depth
+                    ui.add_space(indent_amount as f32);
+                    
+                    if element.file_entry.is_dir {
+                        let expand_icon = if is_expanded {
+                            "▼"
+                        } else {
+                            "▶"
+                        };
+                        
                         ui.label(format!("📁 {}", element_name));
-
                         if ui.button(expand_icon).clicked() {
                             toggled_dirs.push(element.id);
                         }
-                    });
-                }
-                else{
-                    ui.indent(format!("indent_{}", element_name), |ui| {
-                        let _ = ui.selectable_label(false, format!("📄 {}", element_name));
-                    });
-                }
+                    } else {
+                        let _response = ui.selectable_label(false, format!("📄 {}", element_name));
+                    }
+                });
+                
             }
         });
 
-        toggled_dirs.iter()
-            .for_each(|id| {
-                directory.elements.toggle_visibility(id);
+        if !toggled_dirs.is_empty(){
+            toggled_dirs.iter()
+                .for_each(|id| {
+                    directory.elements.toggle_visibility(id);
             });
-
-        // egui::ScrollArea::vertical().show(ui, |ui| {
-        //     for element in visible_elements{
-        //         let element_name = element.entry.get_file_name();
-        //         let is_expanded = tree.is_directory_expanded(&element_name);
-
-        //         if element.is_dir{
-        //             let expand_icon = if is_expanded{
-        //                 "▼"
-        //             } else {
-        //                 "▶"
-        //             };
-
-        //             ui.horizontal(|ui| {    
-        //                 ui.label(format!("📁 {}", element_name));
-
-        //                 if ui.button(expand_icon).clicked() {
-        //                     toggled_dirs.push(element_name);
-        //                 }
-        //             });
-        //         }
-        //         else{
-        //             ui.indent(format!("indent_{}", element_name), |ui| {
-        //                 let _ = ui.selectable_label(false, format!("📄 {}", element_name));
-        //             });
-        //         }
-        //     }
-        // });
-
-        // toggled_dirs.iter()
-        //     .for_each(|name| {
-        //         tree.toggle_directory(&name);
-        //     });
-
+        }
+        
         UiResponse::None
     }
 

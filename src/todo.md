@@ -1,17 +1,12 @@
 
 # Current
 ### Editor - FileTree
-- Implement Tree item to hold directories.
-    - Implementing sorting that:
-        - Splits items into structures with different depths
-        - Sorts those depths by:
-            - Dir first
-            - then files
-            - then files that start withs special characters or special endings (.gitignore, .md , etc.)
-        - **IDEA** Children position also isn't correct.
-            - This could be be solved with sorting (?)
-            - When retrieving visible items, provide a struct that provides some feedback
-                to increase the indent
+- Implement Tree item to hold directories.  
+    - `get_visible_items` 
+        -places elements of same depth, but different directory in the same folder
+        -files inside `object` folder are not read properly
+    - After sorted structure is made, hold it inside `UIDirectory` and remake it whenever
+        a directory is toggled(pressed) 
 
 - Implement file moving and importing via drag and drop
 
