@@ -1,10 +1,12 @@
 use std::cmp::Ordering;
 use std::fmt;
 
+use egui::ahash::{HashMap, HashMapExt};
+
 use crate::utils::error::ErrorType;
 use crate::utils::{error::EditorIoError, io::FileEntry};
 use crate::utils::io;
-use crate::PROJECT_ROOT_DIR;
+use crate::{PROJECT_ROOT_DIR, SHOW_HIDDEN_FILES};
 
 
 ///TreeNode structure that exists inside FlatTree.
@@ -75,6 +77,8 @@ impl FlatTree{
         }
     }
     
+    ///Builds a layer of the FlatTree. This implementation avoids recursion, and must therefore
+    /// be used in a controlled loop to successfully build a whole and complete directory tree.
     fn build(&mut self, directory: &Vec<FileEntry>){
         let mut offset: usize = 1;
 
@@ -104,6 +108,7 @@ impl FlatTree{
         }
     }
 
+    ///Add entry as child to some element.
     fn add_as_child(&mut self, element: &FileEntry, pid: usize, pdepth: usize, id: usize){
         let new_node = TreeNode{
             id: id,
@@ -117,6 +122,7 @@ impl FlatTree{
         self.elements.push(new_node);
     }
 
+    ///Add entry as root.
     fn add_as_root(&mut self, element: &FileEntry, id: usize){
         let new_node = TreeNode { 
             id: id, 
@@ -130,7 +136,7 @@ impl FlatTree{
         self.elements.push(new_node.clone());
     }
 
-    ///Returns the parents index, id and depth if exists.
+    ///Returns the parents index, id and depth based on entry *name*, if exists.
     fn get_parent(&self, name: &str) -> Option<(usize, usize, usize)>{
         self.elements
             .iter()
@@ -139,6 +145,8 @@ impl FlatTree{
             .map(|(index, node)| (index, node.id, node.depth))
     }
 
+    ///Creates and returns a new Flat Tree structure that is prepared (ordered and sorted) 
+    /// to show in UI context.
     pub(crate) fn get_visible_items(&mut self) -> Vec<&TreeNode>{
         let mut structure: Vec<&TreeNode> = Vec::new();
 
@@ -150,50 +158,63 @@ impl FlatTree{
             .unwrap_or(0);
 
         //Iterate entries by depth
-        for depth in 0..max_depth{
-            let mut depth_items = self.elements
-                .iter()
-                .filter(|entry| {
-                    //Collect visible entries
-                    entry.depth == depth
-                    &&
-                    entry.visible
-                })
-                .collect::<Vec<&TreeNode>>();
+        for depth in 0..=max_depth{
+            // Group items by parent id
+            let mut parent_groups: HashMap<usize, Vec<&TreeNode>> = HashMap::new();
             
-            if depth_items.is_empty(){
-                break;
+            // Collect all visible items at this depth and group them by parent
+            for node in self.elements.iter().filter(|entry| entry.depth == depth && entry.visible) {
+                parent_groups.entry(node.parent).or_insert_with(Vec::new).push(node);
             }
             
-            depth_items.sort(); 
-            //FIXME: When multiple directories open in same depth, false parent
-            //FIXME: is provided, therefore grouping different directories elements together
-            let parent_node = depth_items.first().unwrap();
-
-            //Find parent position in ordered vector
-            if let Some(ref mut parent_pos) = structure
-                .iter()
-                // .inspect(|entry| {
-                //     println!("Looking for parent: {:?} in node: {:?}", parent_node.file_entry.parent, entry.file_entry.name);
-                //     println!("Looking for parent id : {:?} in node with id : {:?}", parent_node.parent, entry.id);
-                // })
-                .position(|element| element.id == parent_node.parent)
-            {
-                *parent_pos += 1;
-                for item in depth_items.iter().rev(){
-                    structure.insert(*parent_pos, item);
+            //Review: Don't break, in case of empty dir
+            if parent_groups.is_empty() {
+                continue;
+            }
+            //Sort based on TreeNodes
+            for items in parent_groups.values_mut() {
+                items.sort();
+            }
+            
+            // Process each parent group
+            for (parent_id, items) in parent_groups {
+                //Non-root item
+                if parent_id != 0{
+                    // Default placement position
+                    let mut insert_pos = structure.len();
+                    
+                    // Find the parent position and assign the next spot
+                    if let Some(parent_pos) = structure.iter().position(|element| element.id == parent_id) {
+                        insert_pos = parent_pos + 1;
+                        
+                        // Find the last child of this parent that's already in the structure
+                        // Append after it to maintain an order... older -> newer
+                        for i in (parent_pos + 1)..structure.len() {
+                            if structure[i].parent == parent_id {
+                                insert_pos = i + 1;
+                            } 
+                            else {
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Insert items in order (regarding parents structure)
+                    for (i, item) in items.iter().enumerate() {
+                        structure.insert(insert_pos + i, item);
+                    }
+                }
+                //Root level items are always added
+                else{
+                    structure.extend(items);
                 }
             }
-            //No parent found
-            else{
-                structure.extend(depth_items);
-            }
-            
         }
         
-        return structure
+        structure
     }
 
+    //Toggle visibility of a directory.
     pub(crate) fn toggle_visibility(&mut self, id: &usize) {
         if let Some(node) = self.elements.iter_mut().find(|entry| entry.id == *id) {
             let is_visible = node.visible;
@@ -204,6 +225,7 @@ impl FlatTree{
             if is_visible && is_expanded {
                 node.expanded = false;
                 self.toggle_children(&children_id, Some(false));
+                self.toggle_expantion(&children_id, Some(false));
             }
             //Show children
             else if is_visible && !is_expanded {
@@ -219,13 +241,43 @@ impl FlatTree{
         }
     }
 
+    //Toggle or force expanded on children.
+    fn toggle_expantion(&mut self, children: &Vec<usize>, force_expantion: Option<bool>){
+        for child_id in children {
+            if let Some(node) = self.elements.iter_mut().find(|entry| entry.id == *child_id) {
+                let expanded = force_expantion.unwrap_or(!node.visible);
+                node.expanded = expanded;
+            }
+        }
+    }
+
+    ///Toggle or force visibility on children.
     fn toggle_children(&mut self, children: &Vec<usize>, force_visibility: Option<bool>) {
         for child_id in children {
             if let Some(node) = self.elements.iter_mut().find(|entry| entry.id == *child_id) {
                 let visibility = force_visibility.unwrap_or(!node.visible);
                 node.visible = visibility;
+
+                if !visibility {
+                    let grandchildren = node.children.clone();
+                    self.toggle_children(&grandchildren, Some(false));
+                }
             }
         }
+    }
+
+    ///Create a sub-section of FlatTree from nodes.
+    /// Used to retrieve the 'visible' UIDirectory tree.
+    pub(crate) fn get_children_from_ids(&mut self, children: &Vec<usize>) -> Vec<&TreeNode>{
+        let mut returned = Vec::new();
+
+        for child_id in children{
+            if let Some(child) = self.elements.iter().find(|entry| entry.id == *child_id){
+                returned.push(child);
+            }
+        }
+
+        return returned;
     }
 }
 
@@ -233,7 +285,8 @@ impl FlatTree{
 
 
 ///Helper struct to build FlatTree structure layer by layer. 
-/// Where layer here is a certain depth of a file system.
+/// Helper contains `current` and `next` layers for building.
+/// Each of those are the Items of 1..N directory items.
 pub(crate) struct TreeBuilder{
     current: Option<Vec<FileEntry>>,
     next: Option<Vec<FileEntry>>,
@@ -242,7 +295,10 @@ pub(crate) struct TreeBuilder{
 impl TreeBuilder{
     pub(crate) fn init() -> Result<TreeBuilder, EditorIoError>{
         let current_dir_path= PROJECT_ROOT_DIR.get().unwrap();
-        let current_directory = io::read_directory(current_dir_path.as_path());
+        let current_directory = io::read_directory(
+            current_dir_path.as_path(),
+            **SHOW_HIDDEN_FILES.get().unwrap()
+        );
         
         match current_directory{
             Ok(dir) => {
@@ -285,17 +341,22 @@ impl TreeBuilder{
         let mut next_items = Vec::new();
         let mut dirs_for_next_level = Vec::new();
 
+        //Get next targets (all dirs)
         if let Some(next_directory) = self.next.take(){
+            //For item in dir
             for next_item in next_directory {
                 if next_item.is_dir{
-                    let directory = io::read_directory(&next_item.path)?;
+                    let directory = io::read_directory(
+                        &next_item.path,
+                        **SHOW_HIDDEN_FILES.get().unwrap()
+                    )?;
                     
                     for entry in directory {
                         // Collect subdirectories for the next level
                         if entry.is_dir {
                             dirs_for_next_level.push(entry.clone());
                         }
-                        next_items.push(entry);
+                        next_items.push(entry.clone());
                     }
                 }
             }
@@ -317,6 +378,7 @@ impl TreeBuilder{
         return Ok(())
     }
 
+    ///Builds a FlatTree vector, required before retrieving Tree.
     pub(crate) fn build(&mut self) -> Result<(), EditorIoError>{
         while self.build_tree_layer(){
             let next = self.get_next();
@@ -333,6 +395,7 @@ impl TreeBuilder{
         return Ok(())
     }
 
+    ///Retrieve Flat Tree.
     pub(crate) fn get_tree(&mut self) -> FlatTree{
         return self.tree.clone()
     }

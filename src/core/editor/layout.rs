@@ -5,9 +5,15 @@ use egui_tiles::{Tiles, Tree, UiResponse};
 use crate::{core::editor::objects::flat_tree::{FlatTree, TreeBuilder}, utils::{error::EditorIoError}};
 
 
+///Component used to track and render file systems via a FlatTree structure.
+/// Keeps the whole tree in `flat_tree` and a cached version of the visible 
+/// nodes in `display_tree`.
+/// 
+/// Recomputes the tree to be displayed in every frame via the cached `display_tree`.
 #[derive(Debug, Clone)]
 pub(crate) struct UiDirectory{
-    elements: FlatTree,
+    flat_tree: FlatTree,
+    display_tree: Vec<usize>
 }
 
 #[derive(Debug, Clone)]
@@ -54,7 +60,8 @@ impl TreeBehavior{
         ui.separator();
 
         egui::ScrollArea::vertical().show(ui, |ui| {
-            let visible_items = directory.elements.get_visible_items();
+            let sorted_display_tree = directory.display_tree.clone();
+            let visible_items = directory.flat_tree.get_children_from_ids(&sorted_display_tree);
             
             for element in visible_items {
                 let element_name = element.file_entry.name.clone();
@@ -89,8 +96,16 @@ impl TreeBehavior{
         if !toggled_dirs.is_empty(){
             toggled_dirs.iter()
                 .for_each(|id| {
-                    directory.elements.toggle_visibility(id);
+                    directory.flat_tree.toggle_visibility(id);
             });
+
+            //If even a single dir it toggled, the display tree has to be remade
+            let new_sorted = directory.flat_tree.get_visible_items()
+                .iter()
+                .map(|entry| entry.id)
+                .collect();
+
+            directory.display_tree = new_sorted;
         }
         
         UiResponse::None
@@ -232,9 +247,17 @@ pub(crate) fn create_tree() -> Result<egui_tiles::Tree<Pane>, EditorIoError> {
     let mut tree_builder = TreeBuilder::init()?;
     let _ = tree_builder.build()?;
 
+    let mut tree = tree_builder.get_tree();
+    
+    let visible = tree.get_visible_items()
+        .iter()
+        .map(|entry| entry.id)
+        .collect();
+
     let directory: UiDirectory = {
         UiDirectory { 
-            elements: tree_builder.get_tree()
+            flat_tree: tree,
+            display_tree: visible
         }
     };
 

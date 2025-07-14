@@ -3,7 +3,7 @@ use std::{fs::{self, DirEntry}, os::windows::fs::{MetadataExt}, path::{Path, Pat
 use crate::utils::error::{EditorIoError, ErrorType};
 
 ///Reads and returns a single directory. Does not recurse.
-pub(crate) fn read_directory(path: &Path) -> Result<Vec<FileEntry>, EditorIoError>{
+pub(crate) fn read_directory(path: &Path, show_hidden: bool) -> Result<Vec<FileEntry>, EditorIoError>{
     if !path.is_dir(){
         return Err(EditorIoError::new("Path not a directory", ErrorType::NotADirectory))
     }
@@ -20,8 +20,9 @@ pub(crate) fn read_directory(path: &Path) -> Result<Vec<FileEntry>, EditorIoErro
                 let entry_unwraped = entry.unwrap();
 
                 if let Ok(metadata) = entry_unwraped.metadata(){
-                    //FIXME: Hotfix to now show hidden files
-                    if metadata.file_attributes() & 0x00000002 == 0{
+                    let should_show = show_hidden || (metadata.file_attributes() & 0x00000002 == 0);
+                    
+                    if should_show{
                         let entry_converted: FileEntry = entry_unwraped.into();
                         directory_tree.push(entry_converted.clone());
                     }
