@@ -1,6 +1,8 @@
+use core::f32;
 use std::{collections::HashMap};
 
-use egui_tiles::{Tiles, Tree, UiResponse};
+use egui::{Color32, CornerRadius, Layout};
+use egui_tiles::{TileId, Tiles, Tree, UiResponse};
 
 use crate::{core::editor::objects::flat_tree::{FlatTree, TreeBuilder}, utils::{error::EditorIoError}};
 
@@ -54,43 +56,52 @@ pub(crate) struct TreeBehavior {}
 
 impl TreeBehavior{
     fn render_file_tree(&mut self, ui: &mut egui::Ui, directory: &mut UiDirectory) -> UiResponse{
+        let mut render_response = None;
+
+        //Render header and drag button
+        if let Some(dragged) = self.render_pane_header(ui, "File Tree"){
+            render_response = Some(dragged);
+        }
+
         let mut toggled_dirs = Vec::new();
 
-        ui.heading("File Tree");
-        ui.separator();
-
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            let sorted_display_tree = directory.display_tree.clone();
-            let visible_items = directory.flat_tree.get_children_from_ids(&sorted_display_tree);
-            
-            for element in visible_items {
-                let element_name = element.file_entry.name.clone();
-                let is_expanded = element.expanded; 
-                let depth = element.depth;
-                
-                let indent_amount = depth * 20;
-                
-                ui.horizontal(|ui| {
-                    // Indentation based on depth
-                    ui.add_space(indent_amount as f32);
+        ui.vertical(|ui| {
+            egui::ScrollArea::vertical()
+                .max_width(f32::INFINITY)
+                .auto_shrink([false, true])
+                .show(ui, |ui| {
+                    //Get TreeNodes from Vec<id>
+                    let sorted_display_tree = directory.display_tree.clone();
+                    let visible_items = directory.flat_tree.get_children_from_ids(&sorted_display_tree);
                     
-                    if element.file_entry.is_dir {
-                        let expand_icon = if is_expanded {
-                            "▼"
-                        } else {
-                            "▶"
-                        };
+                    for element in visible_items {
+                        let element_name = element.file_entry.name.clone();
+                        let is_expanded = element.expanded; 
+                        let depth = element.depth;
                         
-                        ui.label(format!("📁 {}", element_name));
-                        if ui.button(expand_icon).clicked() {
-                            toggled_dirs.push(element.id);
-                        }
-                    } else {
-                        let _response = ui.selectable_label(false, format!("📄 {}", element_name));
+                        let indent_amount = depth * 20;
+                        
+                        ui.horizontal(|ui| {
+                            // Indentation based on depth
+                            ui.add_space(indent_amount as f32);
+                            
+                            if element.file_entry.is_dir {
+                                let expand_icon = if is_expanded {
+                                    "▼"
+                                } else {
+                                    "▶"
+                                };
+                                
+                                ui.label(format!("📁 {}", element_name));
+                                if ui.button(expand_icon).clicked() {
+                                    toggled_dirs.push(element.id);
+                                }
+                            } else {
+                                let _response = ui.selectable_label(false, format!("📄 {}", element_name));
+                            }
+                        });
                     }
-                });
-                
-            }
+            })
         });
 
         if !toggled_dirs.is_empty(){
@@ -108,7 +119,11 @@ impl TreeBehavior{
             directory.display_tree = new_sorted;
         }
         
-        UiResponse::None
+        //If tile was dragged, return response, else return None.
+        if render_response.is_some_and(|status| !matches!(status, egui_tiles::UiResponse::None)){
+            return render_response.unwrap()
+        }
+        return UiResponse::None
     }
 
     fn render_inspector(&mut self, ui: &mut egui::Ui, variables: &mut HashMap<String, String>, new_key: &mut String, new_value: &mut String) ->UiResponse{
@@ -213,6 +228,43 @@ impl TreeBehavior{
         });
         UiResponse::None
     }
+
+    ///Renders the header as well as the drag button
+    fn render_pane_header(&mut self, ui: &mut egui::Ui, title: &str) -> Option<egui_tiles::UiResponse>{
+        let mut uiresponse = None;
+
+        ui.horizontal(|ui| {
+            ui.columns(3, |cols| {
+                cols[0].vertical_centered_justified(|ui| {
+                    ui.heading(title);
+                });
+                cols[2].vertical_centered_justified(|ui| {
+                    let drag_button = egui::Button::new("📌")
+                        // .corner_radius(egui::CornerRadius::default())
+                        // .fill(Color32::from_rgb(211, 211, 255))
+                        .sense(egui::Sense::drag());
+
+                    if ui
+                        .add(drag_button)
+                        .drag_started()
+                    {
+                        uiresponse = Some(egui_tiles::UiResponse::DragStarted)
+                    } else {
+                        //egui_tiles::UiResponse::None
+                        uiresponse = None
+                    }
+                })
+            });
+            
+        });
+
+        ui.separator();
+
+        match uiresponse{
+            Some(res) => return Some(res),
+            None => return None,
+        }
+    }
 }
 
 impl egui_tiles::Behavior<Pane> for TreeBehavior {
@@ -221,6 +273,8 @@ impl egui_tiles::Behavior<Pane> for TreeBehavior {
     }
 
     fn pane_ui(&mut self, ui: &mut egui::Ui, _tile_id: egui_tiles::TileId, pane: &mut Pane) -> egui_tiles::UiResponse {
+        
+
         match &mut pane.pane_type{
             PaneType::FileTree { directory} => {
                 self.render_file_tree(ui, directory)

@@ -5,28 +5,31 @@
     - Show hidden files
         - Remove once cell from main
         - Make editor retrieve settings on startup
-            - Store in editor?
-            - Store in user project as .reasy, similar to .vscode
-                - Test it
+            - Hold settings globally in a config in a precomputed folder
 
 - Differentiate between editor paths and user project paths
-    - Editor settings will be saved per user project
+    - Editor paths will be settings, fonts, images etc
+    - User project paths, will be paths that hold projects
+        - Project dir
+        - Assets
+        - Code 
+        - etc.
 
 - Implement file moving and importing via drag and drop
-
-- #### Testing
-    - Add unit tests for flat tree and display tree
 
 <br>
 <br>
 
 # General
 ### Editor UI
-- Implement Draggable/Droppable windows (Inspector, console etc)
-    
-- Implement variable mutation via struct from egui widgets
+- Implement panes (console, inspector etc)
 
-- Implement console
+<br>
+<br>
+
+# Testing
+- ### Editor - FileTree
+    - Add unit tests for flat tree and display tree
 
 <br>
 <br>

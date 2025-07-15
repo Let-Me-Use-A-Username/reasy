@@ -4,12 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-winit = "0.30.11"       # Window manager
-egui = "0.31.1"         # Immediate UI
-egui_tiles = "0.12.0"   # Layout helper for editor
-egui-winit = "0.31.1"   # State translator winit->egui
-egui-wgpu = "0.31.1"    # Renderer
-wgpu = "24.0.5"         # Renderer
+winit = "0.30.11"           # Window manager
+egui = "0.31.1"             # Immediate UI
+egui_tiles = "0.12.0"       # Layout helper for editor
+egui-winit = "0.31.1"       # State translator winit->egui
+egui-wgpu = "0.31.1"        # Renderer
+wgpu = "24.0.5"             # Renderer
 
-pollster = "0.4"        # Async awaiter
-once_cell = "1.21.3"    # Once setter
+pollster = "0.4"            # Async awaiter
+once_cell = "1.21.3"        # Once setter

@@ -1,4 +1,3 @@
-use egui::Context;
 use egui_tiles::Tree;
 use egui_winit::State;
 use winit::event::WindowEvent;
@@ -21,7 +20,7 @@ pub(crate) struct EditorWindow{
     window: Option<Window>,
     wgpu_state: Option<WgpuState>,
     egui_winit_state: Option<State>,
-    egui_context: Option<Context>,
+    egui_context: Option<egui::Context>,
     egui_renderer: Option<Renderer>,
 
     egui_layout: Option<Tree<Pane>>
@@ -38,10 +37,10 @@ impl ApplicationHandler<UserEvent> for EditorWindow{
                     //Create underlying rendering interface.
                     let wgpu_state = pollster::block_on(WgpuState::new(&window));
 
-                    let egui_context = Context::default();
+                    let egui_context = egui::Context::default();
                     let viewport_id = egui_context.viewport_id();
                     let pixels_per_point = egui_context.pixels_per_point();
-                    
+
                     //Create State that translates winit events into egui.
                     let state = State::new(
                         egui_context.clone(), 
