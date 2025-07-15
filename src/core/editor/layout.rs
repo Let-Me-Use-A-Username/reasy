@@ -1,10 +1,9 @@
 use core::f32;
 use std::{collections::HashMap};
 
-use egui::{Color32, CornerRadius, Layout};
-use egui_tiles::{TileId, Tiles, Tree, UiResponse};
+use egui_tiles::{Tiles, Tree, UiResponse};
 
-use crate::{core::editor::objects::flat_tree::{FlatTree, TreeBuilder}, utils::{error::EditorIoError}};
+use crate::{core::editor::objects::{editor_settings::EditorSettings, flat_tree::{FlatTree, TreeBuilder}}, utils::error::EditorIoError};
 
 
 ///Component used to track and render file systems via a FlatTree structure.
@@ -295,10 +294,10 @@ impl egui_tiles::Behavior<Pane> for TreeBehavior {
 
 
 ///Entry point for initializing and retrieving the Layout tree.
-pub(crate) fn create_tree() -> Result<egui_tiles::Tree<Pane>, EditorIoError> {
+pub(crate) fn create_tree(editor_settings: &EditorSettings) -> Result<egui_tiles::Tree<Pane>, EditorIoError> {
     let mut tiles = Tiles::default();
 
-    let mut tree_builder = TreeBuilder::init()?;
+    let mut tree_builder = TreeBuilder::init(editor_settings)?;
     let _ = tree_builder.build()?;
 
     let mut tree = tree_builder.get_tree();

@@ -13,10 +13,11 @@ mod event;
 use crate::core::editor::editor::EditorWindow;
 use crate::event::UserEvent;
 
-
+///Proxy used for user events.
 static USER_EVENT_PROXY: OnceCell<Arc<EventLoopProxy<UserEvent>>> = OnceCell::new();
-static PROJECT_ROOT_DIR: OnceCell<Arc<PathBuf>> = OnceCell::new();
-static SHOW_HIDDEN_FILES: OnceCell<Arc<bool>> = OnceCell::new();
+///Root editor directory, *NOT USER PROJECT*.
+///Doesn't work dynamically.
+static EDITOR_ROOT_DIR: OnceCell<Arc<PathBuf>> = OnceCell::new();
 
 fn main() {
     //Main event dispatcher for OS calls
@@ -33,8 +34,7 @@ fn main() {
             // input, and uses significantly less power/CPU time than ControlFlow::Poll.
             //event_loop.set_control_flow(ControlFlow::Wait);
             let _ = USER_EVENT_PROXY.set(Arc::new(event_loop.create_proxy()));
-            let _ = PROJECT_ROOT_DIR.set(Arc::new(env::current_dir().unwrap_or(PathBuf::from("."))));
-            let _ = SHOW_HIDDEN_FILES.set(Arc::new(false));
+            let _ = EDITOR_ROOT_DIR.set(Arc::new(env!("CARGO_MANIFEST_DIR").into()));
 
             let mut app = EditorWindow::default();
             let result = event_loop.run_app(&mut app);

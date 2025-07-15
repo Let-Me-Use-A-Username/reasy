@@ -1,3 +1,5 @@
+use std::sync::{Arc, RwLock};
+
 use egui_tiles::Tree;
 use egui_winit::State;
 use winit::event::WindowEvent;
@@ -5,6 +7,7 @@ use winit::{window::Window};
 use winit::application::ApplicationHandler;
 use egui_wgpu::Renderer;
 
+use crate::core::editor::objects::editor_settings::EditorSettings;
 use crate::core::renderer::backend::WgpuState;
 use crate::event::{self, UserEvent};
 use crate::core::editor::layout::{create_tree, Pane, TreeBehavior};
@@ -17,13 +20,17 @@ use crate::core::editor::layout::{create_tree, Pane, TreeBehavior};
 /// Orcherstrates rendering and UI logic.
 #[derive(Default)]
 pub(crate) struct EditorWindow{
+    //Window fields
     window: Option<Window>,
     wgpu_state: Option<WgpuState>,
     egui_winit_state: Option<State>,
+    //Rendering fields
     egui_context: Option<egui::Context>,
     egui_renderer: Option<Renderer>,
-
-    egui_layout: Option<Tree<Pane>>
+    //UI Fields
+    egui_layout: Option<Tree<Pane>>,
+    //Settings fields
+    editor_settings: Arc<RwLock<EditorSettings>>
 }
 
 impl ApplicationHandler<UserEvent> for EditorWindow{
@@ -59,6 +66,8 @@ impl ApplicationHandler<UserEvent> for EditorWindow{
                         1,
                         false
                     );
+
+                    let settings = EditorSettings::default();
                     
                     self.window = Some(window);
                     self.wgpu_state = Some(wgpu_state);
@@ -67,8 +76,9 @@ impl ApplicationHandler<UserEvent> for EditorWindow{
                     self.egui_renderer = Some(egui_renderer);
                 
                     //Create Egui Editor layout
-                    if let Ok(tree) = create_tree(){
+                    if let Ok(tree) = create_tree(&settings){
                         self.egui_layout = Some(tree);
+                        self.editor_settings = Arc::new(RwLock::new(settings));
                     }
                     else{
                         event_loop.exit();

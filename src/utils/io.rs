@@ -39,6 +39,7 @@ pub(crate) fn read_directory(path: &Path, show_hidden: bool) -> Result<Vec<FileE
 
 
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub(crate) struct FileEntry {
     pub(crate) parent: String,

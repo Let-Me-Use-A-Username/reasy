@@ -1,21 +1,20 @@
 
 # Current
 ### Editor - FileTree
-- Implement editor settings
-    - Show hidden files
-        - Remove once cell from main
-        - Make editor retrieve settings on startup
-            - Hold settings globally in a config in a precomputed folder
-
-- Differentiate between editor paths and user project paths
-    - Editor paths will be settings, fonts, images etc
-    - User project paths, will be paths that hold projects
-        - Project dir
-        - Assets
-        - Code 
-        - etc.
-
 - Implement file moving and importing via drag and drop
+
+- Implement console 
+
+- Implement editor in middle for file writing/viewing(?)
+
+- Implement Settings store/load
+    - Editor paths (EDITOR_ROOT_DIR) hold information on Editor. 
+        - This is where we store/load global editor settings
+        - Retrieve default fonts, icons etc.
+
+- Implement `user new project` to test file_tree, global settings, local user settings
+    - User project paths, will be paths that hold data similar to .vscode
+
 
 <br>
 <br>

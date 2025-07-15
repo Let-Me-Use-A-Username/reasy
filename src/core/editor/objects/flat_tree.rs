@@ -3,10 +3,11 @@ use std::fmt;
 
 use egui::ahash::{HashMap, HashMapExt};
 
+use crate::core::editor::objects::editor_settings::EditorSettings;
 use crate::utils::error::ErrorType;
 use crate::utils::{error::EditorIoError, io::FileEntry};
 use crate::utils::io;
-use crate::{PROJECT_ROOT_DIR, SHOW_HIDDEN_FILES};
+use crate::EDITOR_ROOT_DIR;
 
 
 ///TreeNode structure that exists inside FlatTree.
@@ -290,14 +291,19 @@ impl FlatTree{
 pub(crate) struct TreeBuilder{
     current: Option<Vec<FileEntry>>,
     next: Option<Vec<FileEntry>>,
-    tree: FlatTree
+    tree: FlatTree,
+    
+    //Editor Settings
+    show_hidden: bool
 }
 impl TreeBuilder{
-    pub(crate) fn init() -> Result<TreeBuilder, EditorIoError>{
-        let current_dir_path= PROJECT_ROOT_DIR.get().unwrap();
+    pub(crate) fn init(editor_settings: &EditorSettings) -> Result<TreeBuilder, EditorIoError>{
+        let show_hidden_files = editor_settings.show_hidden_elements;
+
+        let editor_dir_path= EDITOR_ROOT_DIR.get().unwrap();
         let current_directory = io::read_directory(
-            current_dir_path.as_path(),
-            **SHOW_HIDDEN_FILES.get().unwrap()
+            editor_dir_path.as_path(),
+            show_hidden_files
         );
         
         match current_directory{
@@ -311,7 +317,8 @@ impl TreeBuilder{
                 return Ok(TreeBuilder { 
                     current: Some(dir), 
                     next: Some(nested_dirs),
-                    tree: FlatTree::new()
+                    tree: FlatTree::new(),
+                    show_hidden: show_hidden_files
                 })
             },
             Err(err) => return Err(err.into()),
@@ -333,7 +340,7 @@ impl TreeBuilder{
     }
 
     ///Take `next` items and assign them to current.
-    fn get_next(&mut self) -> Result<(), EditorIoError>{
+    fn get_next(&mut self, show_hidden: bool) -> Result<(), EditorIoError>{
         if self.current.is_some(){
             return Err(EditorIoError::new("Overwriting file entries", ErrorType::Interrupted))
         }
@@ -348,7 +355,7 @@ impl TreeBuilder{
                 if next_item.is_dir{
                     let directory = io::read_directory(
                         &next_item.path,
-                        **SHOW_HIDDEN_FILES.get().unwrap()
+                        show_hidden
                     )?;
                     
                     for entry in directory {
@@ -381,7 +388,7 @@ impl TreeBuilder{
     ///Builds a FlatTree vector, required before retrieving Tree.
     pub(crate) fn build(&mut self) -> Result<(), EditorIoError>{
         while self.build_tree_layer(){
-            let next = self.get_next();
+            let next = self.get_next(self.show_hidden);
 
             if next.is_err(){
                 return Err(next.unwrap_err().into())
