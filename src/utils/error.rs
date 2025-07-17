@@ -3,6 +3,7 @@ use std::{error::Error};
 
 #[derive(Debug)]
 pub(crate) enum ErrorType{
+    //IO Errors
     NotFound,
     PermissionDenied,
     AlreadyExists,
@@ -56,6 +57,15 @@ impl From<std::io::ErrorKind> for ErrorType{
     }
 }
 
+impl From<serde_json::error::Error> for ErrorType{
+    fn from(value: serde_json::Error) -> Self {
+        match value.io_error_kind(){
+            Some(err) => return ErrorType::from(err),
+            None => return ErrorType::Other,
+        }
+    }
+}
+
 
 
 
@@ -93,6 +103,18 @@ impl From<std::io::Error> for EditorIoError{
     fn from(value: std::io::Error) -> Self {
         let msg = value.to_string();
         let etype = value.kind();
+
+        return EditorIoError { 
+            message: msg, 
+            error_type: etype.into() 
+        }
+    }
+}
+
+impl From<serde_json::Error> for EditorIoError{
+    fn from(value: serde_json::Error) -> Self {
+        let msg = value.to_string();
+        let etype = ErrorType::from(value.io_error_kind().unwrap_or(std::io::ErrorKind::Other));
 
         return EditorIoError { 
             message: msg, 

@@ -272,8 +272,6 @@ impl egui_tiles::Behavior<Pane> for TreeBehavior {
     }
 
     fn pane_ui(&mut self, ui: &mut egui::Ui, _tile_id: egui_tiles::TileId, pane: &mut Pane) -> egui_tiles::UiResponse {
-        
-
         match &mut pane.pane_type{
             PaneType::FileTree { directory} => {
                 self.render_file_tree(ui, directory)
@@ -310,7 +308,7 @@ pub(crate) fn create_tree(editor_settings: &EditorSettings) -> Result<egui_tiles
     let directory: UiDirectory = {
         UiDirectory { 
             flat_tree: tree,
-            display_tree: visible
+            display_tree: visible,
         }
     };
 

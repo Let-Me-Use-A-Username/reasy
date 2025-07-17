@@ -7,7 +7,9 @@ use winit::{window::Window};
 use winit::application::ApplicationHandler;
 use egui_wgpu::Renderer;
 
-use crate::core::editor::objects::editor_settings::EditorSettings;
+use crate::core::editor::menu::EditorMenu;
+use crate::core::editor::objects;
+use crate::core::editor::objects::editor_settings::{self, EditorSettings};
 use crate::core::renderer::backend::WgpuState;
 use crate::event::{self, UserEvent};
 use crate::core::editor::layout::{create_tree, Pane, TreeBehavior};
@@ -30,10 +32,11 @@ pub(crate) struct EditorWindow{
     //UI Fields
     egui_layout: Option<Tree<Pane>>,
     //Settings fields
-    editor_settings: Arc<RwLock<EditorSettings>>
+    editor_settings: Option<Arc<RwLock<EditorSettings>>>
 }
 
 impl ApplicationHandler<UserEvent> for EditorWindow{
+    //Note: Resume isn't called on every frame. Rather, it is called quite rarely, most often on mobile.
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         //Creates a window if not exists.
         if self.window.is_none(){
@@ -67,7 +70,9 @@ impl ApplicationHandler<UserEvent> for EditorWindow{
                         false
                     );
 
-                    let settings = EditorSettings::default();
+                    //Load editor settings or default to default
+                    let settings = objects::editor_settings::load_settings()
+                        .unwrap_or(EditorSettings::default());
                     
                     self.window = Some(window);
                     self.wgpu_state = Some(wgpu_state);
@@ -78,7 +83,7 @@ impl ApplicationHandler<UserEvent> for EditorWindow{
                     //Create Egui Editor layout
                     if let Ok(tree) = create_tree(&settings){
                         self.egui_layout = Some(tree);
-                        self.editor_settings = Arc::new(RwLock::new(settings));
+                        self.editor_settings = Some(Arc::new(RwLock::new(settings)));
                     }
                     else{
                         event_loop.exit();
@@ -140,16 +145,17 @@ impl ApplicationHandler<UserEvent> for EditorWindow{
 impl EditorWindow{
      fn render(&mut self) {
         // Extract components from Option
-        let (egui_context, egui_state, egui_renderer, wgpu_state, window, egui_layout) = match (
+        let (egui_context, egui_state, egui_renderer, wgpu_state, window, egui_layout, editor_settings) = match (
             self.egui_context.as_ref(),
             self.egui_winit_state.as_mut(),
             self.egui_renderer.as_mut(),
             self.wgpu_state.as_mut(),
             self.window.as_ref(),
-            self.egui_layout.as_mut()
+            self.egui_layout.as_mut(),
+            self.editor_settings.as_mut()
         ) {
-            (Some(ctx), Some(state), Some(renderer), Some(wgpu), Some(win), Some(layout)) => {
-                (ctx, state, renderer, wgpu, win, layout)
+            (Some(ctx), Some(state), Some(renderer), Some(wgpu), Some(win), Some(layout), Some(editor_settings)) => {
+                (ctx, state, renderer, wgpu, win, layout, editor_settings)
             },
             _ => return,
         };
@@ -158,9 +164,17 @@ impl EditorWindow{
         let raw_input = egui_state.take_egui_input(window);
         //Render UI for one frame.
         let full_output = egui_context.run(raw_input, |ctx| {
-            // Build the UI directly here to avoid borrowing issues
+            //Top Panel must be build first and seperately from others.
+            egui::TopBottomPanel::top("menu bar").show(ctx, |ui| {
+                if let Ok(mut settings) = editor_settings.write(){ 
+                    let mut menu = EditorMenu{};
+                    menu.ui(ui, &mut settings);
+                }
+            });
+            //Central panel must be build last. 
+            // Build layout UI here to avoid borrowing issues.
+            // This consists of *ALL* the panels/tiles that exist inside the layout.
             egui::CentralPanel::default().show(ctx, |ui| {
-                //Review: Render editor layout
                 let mut behavior = TreeBehavior{};
                 egui_layout.ui(&mut behavior, ui);
             });
@@ -172,7 +186,7 @@ impl EditorWindow{
         //Converts shapes into triangles meshes
         let paint_jobs = egui_context.tessellate(full_output.shapes, full_output.pixels_per_point);
         
-        // Render via WGPU using EGUI renderer
+        // Render via WGPU using EGUI-WGPU renderer
         match wgpu_state.render(egui_renderer, paint_jobs, full_output.textures_delta) {
             Ok(_) => {},
             Err(wgpu::SurfaceError::Lost) => wgpu_state.resize(wgpu_state.size),

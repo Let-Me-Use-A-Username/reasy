@@ -1,5 +1,7 @@
 use std::{fs::{self, DirEntry}, os::windows::fs::{MetadataExt}, path::{Path, PathBuf}};
 
+use serde::{de::DeserializeOwned, Serialize};
+
 use crate::utils::error::{EditorIoError, ErrorType};
 
 ///Reads and returns a single directory. Does not recurse.
@@ -37,8 +39,31 @@ pub(crate) fn read_directory(path: &Path, show_hidden: bool) -> Result<Vec<FileE
     return Ok(directory_tree)
 }
 
+///Reads a file and deserialized into a concrete struct.
+pub(crate) fn read_serialized_data<T: DeserializeOwned, P: AsRef<Path>>(path: P) -> Result<T, EditorIoError>{
+    let content = fs::read_to_string(path.as_ref())?;
+
+    let returned_structure = serde_json::from_str::<T>(&content)
+        .map_err(|err| EditorIoError::from(err));
+
+    return returned_structure
+}
+
+///Writes a serialized struct into a file.
+pub(crate) fn write_serialized_data<T: Serialize, P: AsRef<Path>>(settings: &T, path: P) -> Result<(), EditorIoError>{
+    let content = serde_json::to_string_pretty(settings)?;
+    
+    let data_written = fs::write(path, content)
+        .map_err(|err| EditorIoError::from(err));
+
+    return data_written
+}
 
 
+
+
+
+///Structure type that imitates a DirEntry, in order to be bale to perform more operations when reading a directory.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub(crate) struct FileEntry {
