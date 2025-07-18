@@ -17,6 +17,11 @@
             - When UI component settings change that don't affect editor
                 - changes will still be made via `menu.ui` and reloading will still be needed
 
+    -*Ιdea* create a `layout middleware` that holds the UI tree, as well as all the ui settings.
+        - When a components has to be reloaded, this middleware does it 
+        - Also handles settings update.
+        - *Could also be the TreeBehavior with passed settings*
+
 
 ### Editor - FileTree
 - Implement file moving and importing via drag and drop
