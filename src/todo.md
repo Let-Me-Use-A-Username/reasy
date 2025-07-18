@@ -1,18 +1,24 @@
 
 # Current
+### Editor
+- Implement settings of different hierarchy.
+    - Editor has its own settings
+        - font size, max_memory_usage etc
+    - UI components (file tree, console etc) have their own settings
+
+    -*NOTE* Settings are passed down hierachically from the editor to its components,
+        some editor settings, affect lower level entities (like font-size)
+        *BUT* ALL sub-component settings, affect only themselves.
+            - Load settings in editor via `load_settings`
+            - Pass settings onto tiles/panes
+                - Either in UIDirectory i.e. or in TreeBehavior
+            - When editor settings change, that also affect UI component
+                - editor settings change via `menu.ui` and reloading component with new settings
+            - When UI component settings change that don't affect editor
+                - changes will still be made via `menu.ui` and reloading will still be needed
+
+
 ### Editor - FileTree
-- Implement *Editor settings load/store from file*
-    - File loading has been implemented
-    - *File saving hasn't*
-
-- Implement *Editor settings live update*
-    - Saving could occur from `menu.ui` where we know which pane's settings was changed.
-    - *note* if singlenton implemented, update it, then take reference
-        - Then reload component with new settings
-    - Review this approach: https://claude.ai/share/83da24e8-0276-498c-97d6-1975ff796388
-    
-    - Implement a way to share `editor_settings` among lower-level components (EditorLayout)
-
 - Implement file moving and importing via drag and drop
 
 

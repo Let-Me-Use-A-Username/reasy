@@ -9,7 +9,7 @@ use egui_wgpu::Renderer;
 
 use crate::core::editor::menu::EditorMenu;
 use crate::core::editor::objects;
-use crate::core::editor::objects::editor_settings::{self, EditorSettings};
+use crate::core::editor::objects::editor_settings::{EditorSettings};
 use crate::core::renderer::backend::WgpuState;
 use crate::event::{self, UserEvent};
 use crate::core::editor::layout::{create_tree, Pane, TreeBehavior};
@@ -81,7 +81,7 @@ impl ApplicationHandler<UserEvent> for EditorWindow{
                     self.egui_renderer = Some(egui_renderer);
                 
                     //Create Egui Editor layout
-                    if let Ok(tree) = create_tree(&settings){
+                    if let Ok(tree) = create_tree(){
                         self.egui_layout = Some(tree);
                         self.editor_settings = Some(Arc::new(RwLock::new(settings)));
                     }

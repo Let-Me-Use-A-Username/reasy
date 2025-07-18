@@ -3,7 +3,6 @@ use std::fmt;
 
 use egui::ahash::{HashMap, HashMapExt};
 
-use crate::core::editor::objects::editor_settings::EditorSettings;
 use crate::utils::error::ErrorType;
 use crate::utils::{error::EditorIoError, io::FileEntry};
 use crate::utils::io;
@@ -292,18 +291,12 @@ pub(crate) struct TreeBuilder{
     current: Option<Vec<FileEntry>>,
     next: Option<Vec<FileEntry>>,
     tree: FlatTree,
-    
-    //Editor Settings
-    show_hidden: bool
 }
 impl TreeBuilder{
-    pub(crate) fn init(editor_settings: &EditorSettings) -> Result<TreeBuilder, EditorIoError>{
-        let show_hidden_files = editor_settings.show_hidden_elements;
-
+    pub(crate) fn init() -> Result<TreeBuilder, EditorIoError>{
         let editor_dir_path= EDITOR_ROOT_DIR.get().unwrap();
         let current_directory = io::read_directory(
-            editor_dir_path.as_path(),
-            show_hidden_files
+            editor_dir_path.as_path()
         );
         
         match current_directory{
@@ -317,8 +310,7 @@ impl TreeBuilder{
                 return Ok(TreeBuilder { 
                     current: Some(dir), 
                     next: Some(nested_dirs),
-                    tree: FlatTree::new(),
-                    show_hidden: show_hidden_files
+                    tree: FlatTree::new()
                 })
             },
             Err(err) => return Err(err.into()),
@@ -340,7 +332,7 @@ impl TreeBuilder{
     }
 
     ///Take `next` items and assign them to current.
-    fn get_next(&mut self, show_hidden: bool) -> Result<(), EditorIoError>{
+    fn get_next(&mut self) -> Result<(), EditorIoError>{
         if self.current.is_some(){
             return Err(EditorIoError::new("Overwriting file entries", ErrorType::Interrupted))
         }
@@ -354,8 +346,7 @@ impl TreeBuilder{
             for next_item in next_directory {
                 if next_item.is_dir{
                     let directory = io::read_directory(
-                        &next_item.path,
-                        show_hidden
+                        &next_item.path
                     )?;
                     
                     for entry in directory {
@@ -388,7 +379,7 @@ impl TreeBuilder{
     ///Builds a FlatTree vector, required before retrieving Tree.
     pub(crate) fn build(&mut self) -> Result<(), EditorIoError>{
         while self.build_tree_layer(){
-            let next = self.get_next(self.show_hidden);
+            let next = self.get_next();
 
             if next.is_err(){
                 return Err(next.unwrap_err().into())

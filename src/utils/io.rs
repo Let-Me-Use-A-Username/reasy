@@ -1,11 +1,11 @@
-use std::{fs::{self, DirEntry}, os::windows::fs::{MetadataExt}, path::{Path, PathBuf}};
+use std::{fs::{self, DirEntry}, path::{Path, PathBuf}};
 
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::utils::error::{EditorIoError, ErrorType};
 
 ///Reads and returns a single directory. Does not recurse.
-pub(crate) fn read_directory(path: &Path, show_hidden: bool) -> Result<Vec<FileEntry>, EditorIoError>{
+pub(crate) fn read_directory(path: &Path) -> Result<Vec<FileEntry>, EditorIoError>{
     if !path.is_dir(){
         return Err(EditorIoError::new("Path not a directory", ErrorType::NotADirectory))
     }
@@ -21,14 +21,8 @@ pub(crate) fn read_directory(path: &Path, show_hidden: bool) -> Result<Vec<FileE
                 }
                 let entry_unwraped = entry.unwrap();
 
-                if let Ok(metadata) = entry_unwraped.metadata(){
-                    let should_show = show_hidden || (metadata.file_attributes() & 0x00000002 == 0);
-                    
-                    if should_show{
-                        let entry_converted: FileEntry = entry_unwraped.into();
-                        directory_tree.push(entry_converted.clone());
-                    }
-                }
+                let entry_converted: FileEntry = entry_unwraped.into();
+                directory_tree.push(entry_converted.clone());
             }
         },
         Err(err) => {
