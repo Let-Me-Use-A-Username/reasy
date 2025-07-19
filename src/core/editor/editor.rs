@@ -1,6 +1,5 @@
 use std::sync::{Arc, RwLock};
 
-use egui_tiles::Tree;
 use egui_winit::State;
 use winit::event::WindowEvent;
 use winit::{window::Window};
@@ -9,10 +8,10 @@ use egui_wgpu::Renderer;
 
 use crate::core::editor::menu::EditorMenu;
 use crate::core::editor::objects;
-use crate::core::editor::objects::editor_settings::{EditorSettings};
+use crate::core::editor::objects::settings::{EditorSettings};
 use crate::core::renderer::backend::WgpuState;
 use crate::event::{self, UserEvent};
-use crate::core::editor::layout::{create_tree, Pane, TreeBehavior};
+use crate::core::editor::layout::EditorLayout;
 
 
 
@@ -30,7 +29,7 @@ pub(crate) struct EditorWindow{
     egui_context: Option<egui::Context>,
     egui_renderer: Option<Renderer>,
     //UI Fields
-    egui_layout: Option<Tree<Pane>>,
+    egui_layout: Option<EditorLayout>,
     //Settings fields
     editor_settings: Option<Arc<RwLock<EditorSettings>>>
 }
@@ -71,8 +70,7 @@ impl ApplicationHandler<UserEvent> for EditorWindow{
                     );
 
                     //Load editor settings or default to default
-                    let settings = objects::editor_settings::load_settings()
-                        .unwrap_or(EditorSettings::default());
+                    let settings = objects::settings::load_settings().unwrap_or_default();
                     
                     self.window = Some(window);
                     self.wgpu_state = Some(wgpu_state);
@@ -81,9 +79,9 @@ impl ApplicationHandler<UserEvent> for EditorWindow{
                     self.egui_renderer = Some(egui_renderer);
                 
                     //Create Egui Editor layout
-                    if let Ok(tree) = create_tree(){
-                        self.egui_layout = Some(tree);
-                        self.editor_settings = Some(Arc::new(RwLock::new(settings)));
+                    if let Ok(layout) = EditorLayout::new(settings.clone()){
+                        self.egui_layout = Some(layout);
+                        self.editor_settings = Some(Arc::new(RwLock::new(settings)))
                     }
                     else{
                         event_loop.exit();
@@ -165,18 +163,30 @@ impl EditorWindow{
         //Render UI for one frame.
         let full_output = egui_context.run(raw_input, |ctx| {
             //Top Panel must be build first and seperately from others.
-            egui::TopBottomPanel::top("menu bar").show(ctx, |ui| {
+            let ui_changes = egui::TopBottomPanel::top("MenuBar").show(ctx, |ui| {
                 if let Ok(mut settings) = editor_settings.write(){ 
                     let mut menu = EditorMenu{};
-                    menu.ui(ui, &mut settings);
+                    menu.ui(ui, &mut settings)
+                }
+                else {
+                    None
                 }
             });
+
+            //If UI changes, reload layout
+            if ui_changes.inner.is_some(){
+                if let Ok(settings) = editor_settings.read(){
+                    egui_layout.reload(
+                        ui_changes.inner.unwrap(),
+                        &settings
+                    );
+                }
+            }
             //Central panel must be build last. 
             // Build layout UI here to avoid borrowing issues.
             // This consists of *ALL* the panels/tiles that exist inside the layout.
             egui::CentralPanel::default().show(ctx, |ui| {
-                let mut behavior = TreeBehavior{};
-                egui_layout.ui(&mut behavior, ui);
+                egui_layout.ui(ui);
             });
         });
         

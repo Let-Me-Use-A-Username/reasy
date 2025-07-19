@@ -1,4 +1,4 @@
-use std::{fs::{self, DirEntry}, path::{Path, PathBuf}};
+use std::{fs::{self, DirEntry, Metadata}, path::{Path, PathBuf}};
 
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -69,6 +69,7 @@ pub(crate) struct FileEntry {
     pub(crate) is_symlink: bool,
     pub(crate) size: Option<u64>,
     pub(crate) modified: Option<std::time::SystemTime>,
+    pub(crate) metadata: Metadata
 }
 
 impl Into<FileEntry> for DirEntry {
@@ -100,6 +101,7 @@ impl Into<FileEntry> for DirEntry {
             is_symlink: file_type.is_symlink(),
             size: Some(size),
             modified,
+            metadata
         }
     }
 }

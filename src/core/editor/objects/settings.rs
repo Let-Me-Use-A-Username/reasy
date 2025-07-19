@@ -55,3 +55,20 @@ fn get_settings_path() -> PathBuf{
 
     return full_path
 }
+
+
+
+
+
+///Configuration that are related to UI preferences.
+#[derive(Clone, Debug)]
+pub(crate) struct FileTreeSettings{
+    pub(crate) show_hidden_elements: bool
+}
+impl From<EditorSettings> for FileTreeSettings{
+    fn from(value: EditorSettings) -> Self {
+        return FileTreeSettings { 
+            show_hidden_elements: value.show_hidden_elements 
+        }
+    }
+}

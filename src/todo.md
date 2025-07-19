@@ -1,26 +1,11 @@
 
 # Current
 ### Editor
-- Implement settings of different hierarchy.
-    - Editor has its own settings
-        - font size, max_memory_usage etc
-    - UI components (file tree, console etc) have their own settings
+-*Note* Settings now go from 
+    - EditorMenu(collect Panes to change) -> EditorLayout(Apply new changes to panes and reload them) -> Each pane reloads itself and holds its own settings, EditorLayout merely propagates them.
 
-    -*NOTE* Settings are passed down hierachically from the editor to its components,
-        some editor settings, affect lower level entities (like font-size)
-        *BUT* ALL sub-component settings, affect only themselves.
-            - Load settings in editor via `load_settings`
-            - Pass settings onto tiles/panes
-                - Either in UIDirectory i.e. or in TreeBehavior
-            - When editor settings change, that also affect UI component
-                - editor settings change via `menu.ui` and reloading component with new settings
-            - When UI component settings change that don't affect editor
-                - changes will still be made via `menu.ui` and reloading will still be needed
-
-    -*Ιdea* create a `layout middleware` that holds the UI tree, as well as all the ui settings.
-        - When a components has to be reloaded, this middleware does it 
-        - Also handles settings update.
-        - *Could also be the TreeBehavior with passed settings*
+-*Problem* When hiding a directory, if expanded and then hidden elemenets are hidden, children of this directory
+remain active.
 
 
 ### Editor - FileTree
@@ -38,6 +23,8 @@
 
 - Implement `user new project` to test file_tree, global settings, local user settings
     - User project paths, will be paths that hold data similar to .vscode
+
+- When saving settings, give user the option to save as global or project settings.
 
 <br>
 <br>
