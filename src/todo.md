@@ -1,12 +1,24 @@
 
 # Current
 ### Editor
--*Note* Settings now go from 
-    - EditorMenu(collect Panes to change) -> EditorLayout(Apply new changes to panes and reload them) -> Each pane reloads itself and holds its own settings, EditorLayout merely propagates them.
+#### Editor - FileTree
+-*VERIFIED ERROR* from test results
+    - Some elements have wrong ids and cause parent mixup.
+    - This addresses issues: 1, 2(possibly) and 3 
+    - *Implement* hasher for path to usize
+        - https://chatgpt.com/share/687e3371-be18-8004-8e55-e573ee262958
+- *Test* if `get_parent` works with same named parents
+    - If it doesn't work, change to full path.
 
--*Problem* When hiding a directory, if expanded and then hidden elemenets are hidden, children of this directory
-remain active.
-
+-*Problems*
+    - 1. Closing directory sometimes closes sibling as well
+        - .git/objects , .git/refs
+        - If refs is opened, and objects is opened, and then object closes, refs closes too
+    - 2. Leaf directories are sometimes empty when they shouldn't
+        - *objects* directory
+    - 3. Some leaf directories have duplicated entries
+        - .git/refs/heads
+        - In directory two `master` items exists in editor, only single one is real.
 
 ### Editor - FileTree
 - Implement file moving and importing via drag and drop
@@ -30,8 +42,6 @@ remain active.
 <br>
 
 # Testing
-- ### Editor - FileTree
-    - Add unit tests for flat tree and display tree
 
 <br>
 <br>

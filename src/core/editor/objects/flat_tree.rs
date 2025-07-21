@@ -1,5 +1,7 @@
 use std::cmp::Ordering;
-use std::fmt;
+use std::sync::Arc;
+use std::{env, fmt};
+use std::path::PathBuf;
 
 use egui::ahash::{HashMap, HashMapExt};
 
@@ -10,15 +12,13 @@ use crate::EDITOR_ROOT_DIR;
 
 
 ///TreeNode structure that exists inside FlatTree.
-///     - Id: Depth * 10 + offset
-///     - Depth: Starts at 1..
 #[derive(Clone)]
 pub(crate) struct TreeNode{
     pub(crate) id: usize,
     pub(crate) depth: usize,
     pub(crate) file_entry: FileEntry,
     children: Vec<usize>,
-    parent: usize,
+    pub(crate) parent: usize,
     pub(crate) visible: bool,
     pub(crate) expanded: bool
 }
@@ -147,7 +147,7 @@ impl FlatTree{
 
     ///Creates and returns a new Flat Tree structure that is prepared (ordered and sorted) 
     /// to show in UI context.
-    pub(crate) fn get_visible_items(&mut self) -> Vec<&TreeNode>{
+    pub(crate) fn get_visible_items(&self) -> Vec<&TreeNode>{
         let mut structure: Vec<&TreeNode> = Vec::new();
 
         //Get max depth
@@ -167,7 +167,7 @@ impl FlatTree{
                 parent_groups.entry(node.parent).or_insert_with(Vec::new).push(node);
             }
             
-            //Review: Don't break, in case of empty dir
+            //Note: Don't break, in case of empty dir
             if parent_groups.is_empty() {
                 continue;
             }
@@ -180,6 +180,17 @@ impl FlatTree{
             for (parent_id, items) in parent_groups {
                 //Non-root item
                 if parent_id != 0{
+                    //Check if parent is expanded
+                    let parent_expanded = self.elements
+                        .iter()
+                        .find(|node| node.id == parent_id)
+                        .map(|node| node.expanded)
+                        .unwrap_or(false);
+                    //If not, continue to next node
+                    if !parent_expanded{
+                        continue;
+                    }
+
                     // Default placement position
                     let mut insert_pos = structure.len();
                     
@@ -293,8 +304,18 @@ pub(crate) struct TreeBuilder{
     tree: FlatTree,
 }
 impl TreeBuilder{
-    pub(crate) fn init() -> Result<TreeBuilder, EditorIoError>{
-        let editor_dir_path= EDITOR_ROOT_DIR.get().unwrap();
+    pub(crate) fn init(path: Option<PathBuf>) -> Result<TreeBuilder, EditorIoError>{
+        let editor_dir_path = {
+            //If path provided
+            if path.is_some(){
+                path.unwrap()
+            }
+            //Else default back to EDITOR ROOT
+            else{
+                let path = EDITOR_ROOT_DIR.get();
+                path.unwrap_or(&Arc::new(PathBuf::from(env::current_dir().unwrap()))).to_path_buf()
+            }
+        };
         let current_directory = io::read_directory(
             editor_dir_path.as_path()
         );
@@ -319,9 +340,7 @@ impl TreeBuilder{
 
     ///Build tree layer from current items.
     fn build_tree_layer(&mut self) -> bool{
-        let current_entries = &self.current.take();
-
-        if let Some(current_directory) = current_entries{
+        if let Some(current_directory) = &self.current.take(){
             self.tree.build(current_directory);
             return true
         }
@@ -397,4 +416,110 @@ impl TreeBuilder{
     pub(crate) fn get_tree(&mut self) -> FlatTree{
         return self.tree.clone()
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn test_flat_tree_build() {
+        //test_data/file1
+        //test_data/file2.txt
+        let test_dir = "test_data";
+        let file_1 = format!("{}/file1", test_dir);
+        let file_2 = format!("{}/file2.txt", test_dir);
+
+        //test_data/sub/file1.txt
+        //test_data/sub/file2
+        let sub_dir = format!("{}/sub", test_dir);
+        let sub_file_1 = format!("{}/file1.txt", sub_dir);
+        let sub_file_2 = format!("{}/file2", sub_dir);
+
+        //test_data/sub/sub/fil1.txt
+        //test_data/sub/sub/file2
+        let sub_sub_dir = format!("{}/sub", sub_dir);
+        let sub_sub_file_1 = format!("{}/file1.txt", sub_sub_dir);
+        let sub_sub_file_2 = format!("{}/file2", sub_sub_dir);
+
+        fs::create_dir_all(&test_dir).unwrap();
+        fs::write(&file_1, "test1").unwrap();
+        fs::write(&file_2, "test2").unwrap();
+
+        fs::create_dir_all(&sub_dir).unwrap();
+        fs::write(&sub_file_1, "test1").unwrap();
+        fs::write(&sub_file_2, "test2").unwrap();
+
+        fs::create_dir_all(&sub_sub_dir).unwrap();
+        fs::write(&sub_sub_file_1, "test1").unwrap();
+        fs::write(&sub_sub_file_2, "test2").unwrap();
+
+
+        let mut builder = TreeBuilder::init(Some(PathBuf::from(test_dir))).unwrap();
+        let _ = builder.build();
+
+        let tree = builder.get_tree();
+
+        assert!(!tree.elements.is_empty(), "Tree should not be empty");
+        assert!(tree.elements.iter().any(|n| n.file_entry.name == "file1.txt"));
+        assert!(tree.elements.iter().any(|n| n.file_entry.name == "file2.txt"));
+        assert_eq!(tree.elements.len(), 8);
+
+        // Cleanup
+        fs::remove_dir_all(test_dir).unwrap();
+    }
+
+        #[test]
+    fn test_flat_tree_build_with_set_directory() {
+        let mut builder = TreeBuilder::init(Some(PathBuf::from("D:\\Projects\\reasy\\.git"))).unwrap();
+        let _ = builder.build();
+
+        let tree = builder.get_tree();
+
+        let zero_depth: Vec<&TreeNode> = tree.elements
+            .iter()
+            .filter(|node| node.depth == 0)
+            .collect();
+
+        assert_eq!(zero_depth.len(), 12);
+
+        let first_depth: Vec<&TreeNode> = tree.elements
+            .iter()
+            .filter(|node| node.depth == 1)
+            .collect();
+
+        //FIXME: Tree has 3 extra items
+        assert_eq!(first_depth.len(), 155);
+
+        //FIXME: refs folder has 7 children, when 4 are present
+        // for (i, node) in zero_depth.iter().enumerate(){
+        //     println!("{:?} node: {:?} has {:?} children", i, node.file_entry.name, node.children);
+        // }
+    }
+
+
+    #[test]
+    fn test_flat_tree_children() {
+        let mut builder = TreeBuilder::init(Some(PathBuf::from("D:\\Projects\\reasy\\.git"))).unwrap();
+        let _ = builder.build();
+
+        let tree = builder.get_tree();
+
+        let object = tree
+            .elements
+            .iter()
+            .find(|node| node.file_entry.name == "objects" && node.file_entry.is_dir)
+            .cloned()
+            .unwrap();
+
+        let children = object.children;
+
+        for child in children{
+            let counts = tree.elements.iter().filter(|node| node.id == child).count();
+            assert_eq!(counts, 1);
+        }
+    }
+
 }

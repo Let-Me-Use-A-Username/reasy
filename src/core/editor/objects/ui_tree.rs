@@ -1,9 +1,9 @@
 use core::f32;
-use std::{collections::HashMap, os::windows::fs::MetadataExt};
+use std::{collections::{HashMap, HashSet}, os::windows::fs::MetadataExt};
 
 use egui_tiles::{Tiles, Tree, UiResponse};
 
-use crate::{core::editor::{objects::{flat_tree::{FlatTree, TreeBuilder}, settings::{EditorSettings, FileTreeSettings}}}, utils::error::EditorIoError};
+use crate::{core::editor::objects::{flat_tree::{FlatTree, TreeBuilder}, settings::{EditorSettings, FileTreeSettings}}, utils::error::EditorIoError};
 
 
 
@@ -18,13 +18,49 @@ pub(crate) struct UiDirectory{
     display_tree: Vec<usize>
 }
 impl UiDirectory{
-    pub(crate) fn reload(&mut self){
-        let visible = self.flat_tree.get_visible_items()
-            .iter()
-            .map(|entry| entry.id)
-            .collect();
+    pub(crate) fn reload(&mut self, show_hidden: bool){
+        let visible_nodes = self.flat_tree.get_visible_items();
+        
+        let mut dirs_to_collapse = Vec::new();
+        
+        //First pass for dir collection
+        for node in visible_nodes.iter() {
+            let is_hidden = node.file_entry.metadata.file_attributes() & 0x2 != 0;
+            let show = show_hidden || !is_hidden;
+            
+            //If node is dir, is expanded and shouldn't be visible, toggle it
+            if !show && node.file_entry.is_dir && node.expanded {
+                dirs_to_collapse.push(node.id);
+            }
+        }
+        
+        //Toggle directories that should be hidden
+        for dir_id in dirs_to_collapse {
+            self.flat_tree.toggle_visibility(&dir_id);
+        }
 
-        self.display_tree = visible;
+        //Collect visible nodes
+        let mut display_tree = Vec::new();
+        let mut visible_parent_ids = HashSet::new();
+
+        //Note: Dirs have been collapsed, these items are different from the first ones.
+        let updated_visible_nodes = self.flat_tree.get_visible_items();
+        
+        for node in updated_visible_nodes.iter() {
+            
+            //Add all root items
+            if node.depth == 0 {
+                display_tree.push(node.id);
+                visible_parent_ids.insert(node.id);
+            }
+            //Add children items that have a visible parent
+            else if visible_parent_ids.contains(&node.parent) {
+                display_tree.push(node.id);
+                visible_parent_ids.insert(node.id);
+            }
+        }
+        
+        self.display_tree = display_tree;
     }
 }
 
@@ -88,8 +124,8 @@ impl Pane{
     pub(crate) fn reload_with_settings(&mut self, new_settings: FileTreeSettings){
         match &mut self.pane_type {
             PaneType::FileTree { directory, settings } => {
-                *settings = new_settings;
-                directory.reload();
+                *settings = new_settings.clone();
+                directory.reload(new_settings.show_hidden_elements);
             },
             PaneType::Inspector { .. } => todo!(),
             PaneType::Console { .. } => todo!(),
@@ -123,7 +159,7 @@ impl TreeBehavior{
                     let visible_items = directory.flat_tree.get_children_from_ids(&sorted_display_tree);
                     
                     for element in visible_items {
-                        //if hidden are allowed, or if not hidden
+                        //Note: if hidden are allowed, or if not hidden
                         let show = settings.show_hidden_elements || (element.file_entry.metadata.file_attributes() & 0x2 == 0);
                         
                         if show{
@@ -350,16 +386,16 @@ impl egui_tiles::Behavior<Pane> for TreeBehavior {
 pub(crate) fn create_tree(settings: EditorSettings) -> Result<egui_tiles::Tree<Pane>, EditorIoError> {
     let mut tiles = Tiles::default();
 
-    let mut tree_builder = TreeBuilder::init()?;
+    let mut tree_builder = TreeBuilder::init(None)?;
     let _ = tree_builder.build()?;
 
-    let mut tree = tree_builder.get_tree();
+    let tree = tree_builder.get_tree();
     
     let visible = tree.get_visible_items()
         .iter()
         .map(|entry| entry.id)
         .collect();
-
+    
     let directory: UiDirectory = {
         UiDirectory { 
             flat_tree: tree,

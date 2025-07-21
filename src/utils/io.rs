@@ -1,3 +1,4 @@
+use core::fmt;
 use std::{fs::{self, DirEntry, Metadata}, path::{Path, PathBuf}};
 
 use serde::{de::DeserializeOwned, Serialize};
@@ -59,7 +60,7 @@ pub(crate) fn write_serialized_data<T: Serialize, P: AsRef<Path>>(settings: &T, 
 
 ///Structure type that imitates a DirEntry, in order to be bale to perform more operations when reading a directory.
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct FileEntry {
     pub(crate) parent: String,
     pub(crate) name: String,
@@ -103,5 +104,21 @@ impl Into<FileEntry> for DirEntry {
             modified,
             metadata
         }
+    }
+}
+
+impl fmt::Debug for FileEntry{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FileEntry")
+        //.field("parent", &self.parent)
+        .field("name", &self.name)
+        // .field("path", &self.path)
+        // .field("is_dir", &self.is_dir)
+        // .field("is_file", &self.is_file)
+        // .field("is_symlink", &self.is_symlink)
+        // .field("size", &self.size)
+        // .field("modified", &self.modified)
+        // .field("metadata", &self.metadata)
+        .finish()
     }
 }
