@@ -125,7 +125,7 @@ impl ApplicationHandler<UserEvent> for EditorWindow{
                 // applications which do not always need to. Applications that redraw continuously
                 // can render here instead.
                 self.render();
-            }
+            },
             _ => (),
         }
     }

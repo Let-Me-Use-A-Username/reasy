@@ -1,14 +1,24 @@
 
+# [0.1.12] - 21/7/2025
+
+### Changed
+- [FileTree]
+    - Now contains a *lookup table* for quicker node search.
+- [FileTree-TreeNode]
+    - *Node id* generation is now the hashed full path.
+    - *Parent finding* is now done via full path instead of last component.
+
+//---------------------------------------------------------------------------------------------------------------------------------//
 
 # [0.1.12] - 21/7/2025
 Minor changes in hidding nested elements logic.
 
 ### Added 
-    - [FlatTree: get_visible_items()] now checks if a node's parent is expanded before returning it as a visible element.
-    - [FlatTree] added tests in regards to Tree structure, node count, and child duplication.
+- [FlatTree-get_visible_items()] now checks if a node's parent is expanded before returning it as a visible element.
+- [FlatTree] added tests in regards to Tree structure, node count, and child duplication.
 ### Changed
-    - [UIDirectory: reload()] now collapses elements whom's parent is hidden AND collapsed.
-        - Addresses issue of visible elements who's parent has the hidden property set, but children don't.
+- [UIDirectory-reload()] now collapses elements whom's parent is hidden AND collapsed.
+    - Addresses issue of visible elements who's parent has the hidden property set, but children don't.
 
 //---------------------------------------------------------------------------------------------------------------------------------//
 
@@ -16,9 +26,9 @@ Minor changes in hidding nested elements logic.
 Implemented settings inheritance from *EditorMenu -> EditorLayout*
 
 ### Added 
-    - Live settings for UI components.
+- Live settings for UI components.
 ### Changed
-    - [Pane's] are more self contained (added settings and reloading)
+- [Pane's] are more self contained (added settings and reloading)
 
 //---------------------------------------------------------------------------------------------------------------------------------//
 

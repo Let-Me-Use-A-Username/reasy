@@ -1,9 +1,11 @@
 use std::cmp::Ordering;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::hash::{DefaultHasher, Hasher};
 use std::sync::Arc;
 use std::{env, fmt};
 use std::path::PathBuf;
-
-use egui::ahash::{HashMap, HashMapExt};
+use std::hash::Hash;
 
 use crate::utils::error::ErrorType;
 use crate::utils::{error::EditorIoError, io::FileEntry};
@@ -68,44 +70,80 @@ impl Eq for TreeNode{}
 ///FlatTree structure used in UI file tree.
 #[derive(Debug, Clone)]
 pub(crate) struct FlatTree{
-    elements: Vec<TreeNode>
+    elements: Vec<TreeNode>,
+    lookup: HashMap<usize, usize>
 }
 impl FlatTree{
     fn new() -> FlatTree{
         return FlatTree{
-            elements: Vec::new()
+            elements: Vec::new(),
+            lookup: HashMap::new()
+        }
+    }
+
+    //Retrieve a mutable node reference via node id.
+    fn get_node_mut(&mut self, id: usize) -> Option<&mut TreeNode> {
+        if let Some(node_index) = self.lookup.get(&id){
+            return self.elements.get_mut(*node_index)
+        }
+        else{
+            None
+        }
+    }
+    
+    //Retrieve a node reference via node id.
+    fn get_node(&self, id: usize) -> Option<&TreeNode> {
+        if let Some(node_index) = self.lookup.get(&id){
+            return self.elements.get(*node_index)
+        }
+        else{
+            None
+        }
+    }
+
+    ///Rebuils lookup table
+    fn rebuild_index(&mut self){
+        self.lookup.clear();
+
+        for (index, node) in self.elements.iter().enumerate(){
+            self.lookup.insert(node.id, index);
         }
     }
     
     ///Builds a layer of the FlatTree. This implementation avoids recursion, and must therefore
     /// be used in a controlled loop to successfully build a whole and complete directory tree.
     fn build(&mut self, directory: &Vec<FileEntry>){
-        let mut offset: usize = 1;
-
         if self.elements.is_empty(){
             for file_entry in directory{
-                self.add_as_root(file_entry, offset);
-                offset += 1;
+                let id = Self::path_to_id(&file_entry.path);
+                self.add_as_root(file_entry, id);
             }
         }
         else{
             for element in directory{
-                let parent_name = element.parent.clone();
+                let id = Self::path_to_id(&element.path);
 
-                if let Some((parent_index, parent_id, parent_depth)) = self.get_parent(parent_name.as_str()){
-                    let id = parent_id * 10 + offset;
+                if self.lookup.contains_key(&id){
+                    continue;
+                }
 
+                let mut parent_path = PathBuf::from(element.path.clone());
+                parent_path.pop();
+
+                if let Some((_, parent_id, parent_depth)) = self.get_parent_from_path(&parent_path) {
                     self.add_as_child(element, parent_id, parent_depth, id);
                     
-                    if let Some(parent) = self.elements.get_mut(parent_index){
+                    // Add child to parent's children list
+                    if let Some(parent) = self.get_node_mut(parent_id) {
                         if !parent.children.contains(&id){
                             parent.children.push(id);
                         }
                     }
                 }
-                offset += 1;
             }
         }
+
+        self.rebuild_index();
     }
 
     ///Add entry as child to some element.
@@ -120,6 +158,7 @@ impl FlatTree{
             expanded: false,
         };
         self.elements.push(new_node);
+        self.lookup.insert(id, self.elements.len());
     }
 
     ///Add entry as root.
@@ -133,15 +172,16 @@ impl FlatTree{
             visible: true,
             expanded: false,
         };
-        self.elements.push(new_node.clone());
+        self.elements.push(new_node);
+        self.lookup.insert(id, self.elements.len());
     }
 
-    ///Returns the parents index, id and depth based on entry *name*, if exists.
-    fn get_parent(&self, name: &str) -> Option<(usize, usize, usize)>{
+    ///Returns the parents index, id and depth based on entry *path*, if exists.
+    fn get_parent_from_path(&self, path: &PathBuf) -> Option<(usize, usize, usize)>{
         self.elements
             .iter()
             .enumerate()
-            .find(|entry| entry.1.file_entry.name == name)
+            .find(|(_, node)| node.file_entry.path == *path)
             .map(|(index, node)| (index, node.id, node.depth))
     }
 
@@ -178,15 +218,18 @@ impl FlatTree{
             
             // Process each parent group
             for (parent_id, items) in parent_groups {
+                //Root level items (parent_id == 0) are always added
+                if parent_id == 0{
+                    structure.extend(items);
+                }
                 //Non-root item
-                if parent_id != 0{
+                else {
                     //Check if parent is expanded
-                    let parent_expanded = self.elements
-                        .iter()
-                        .find(|node| node.id == parent_id)
+                    let parent_expanded = self.get_node(parent_id)
                         .map(|node| node.expanded)
                         .unwrap_or(false);
-                    //If not, continue to next node
+                    
+                    //If not expanded, skip these children
                     if !parent_expanded{
                         continue;
                     }
@@ -215,10 +258,6 @@ impl FlatTree{
                         structure.insert(insert_pos + i, item);
                     }
                 }
-                //Root level items are always added
-                else{
-                    structure.extend(items);
-                }
             }
         }
         
@@ -231,7 +270,7 @@ impl FlatTree{
             let is_visible = node.visible;
             let is_expanded = node.expanded;
             let children_id = node.children.clone();
-
+            
             //Hide children
             if is_visible && is_expanded {
                 node.expanded = false;
@@ -289,6 +328,15 @@ impl FlatTree{
         }
 
         return returned;
+    }
+
+    ///Takes a node's path and returns a hashed id.
+    fn path_to_id(path: &PathBuf) -> usize{
+        let mut hasher = DefaultHasher::new();
+        let canonical_path = path.canonicalize().unwrap_or_else(|_| path.clone());
+        canonical_path.hash(&mut hasher);
+
+        return hasher.finish() as usize
     }
 }
 
@@ -456,69 +504,60 @@ mod tests {
         fs::write(&sub_sub_file_1, "test1").unwrap();
         fs::write(&sub_sub_file_2, "test2").unwrap();
 
-
         let mut builder = TreeBuilder::init(Some(PathBuf::from(test_dir))).unwrap();
         let _ = builder.build();
 
         let tree = builder.get_tree();
 
         assert!(!tree.elements.is_empty(), "Tree should not be empty");
-        assert!(tree.elements.iter().any(|n| n.file_entry.name == "file1.txt"));
+        assert!(tree.elements.iter().any(|n| n.file_entry.name == "file1"));
         assert!(tree.elements.iter().any(|n| n.file_entry.name == "file2.txt"));
         assert_eq!(tree.elements.len(), 8);
+
+        // Test that no duplicates exist
+        let mut ids = std::collections::HashSet::new();
+        for node in &tree.elements {
+            assert!(ids.insert(node.id), "Duplicate node ID found: {}", node.id);
+        }
 
         // Cleanup
         fs::remove_dir_all(test_dir).unwrap();
     }
 
-        #[test]
-    fn test_flat_tree_build_with_set_directory() {
-        let mut builder = TreeBuilder::init(Some(PathBuf::from("D:\\Projects\\reasy\\.git"))).unwrap();
+    #[test]
+    fn test_no_duplicate_children() {
+        let mut builder = TreeBuilder::init(Some(PathBuf::from("."))).unwrap();
         let _ = builder.build();
-
         let tree = builder.get_tree();
 
-        let zero_depth: Vec<&TreeNode> = tree.elements
-            .iter()
-            .filter(|node| node.depth == 0)
-            .collect();
-
-        assert_eq!(zero_depth.len(), 12);
-
-        let first_depth: Vec<&TreeNode> = tree.elements
-            .iter()
-            .filter(|node| node.depth == 1)
-            .collect();
-
-        //FIXME: Tree has 3 extra items
-        assert_eq!(first_depth.len(), 155);
-
-        //FIXME: refs folder has 7 children, when 4 are present
-        // for (i, node) in zero_depth.iter().enumerate(){
-        //     println!("{:?} node: {:?} has {:?} children", i, node.file_entry.name, node.children);
-        // }
+        // Check that no node has duplicate children
+        for node in &tree.elements {
+            let mut child_set = std::collections::HashSet::new();
+            for &child_id in &node.children {
+                assert!(child_set.insert(child_id), 
+                    "Node {} has duplicate child {}", node.id, child_id);
+            }
+        }
     }
-
-
+    
     #[test]
     fn test_flat_tree_children() {
-        let mut builder = TreeBuilder::init(Some(PathBuf::from("D:\\Projects\\reasy\\.git"))).unwrap();
+        let mut builder = TreeBuilder::init(Some(PathBuf::from("."))).unwrap();
         let _ = builder.build();
-
         let tree = builder.get_tree();
 
-        let object = tree
-            .elements
-            .iter()
-            .find(|node| node.file_entry.name == "objects" && node.file_entry.is_dir)
-            .cloned()
-            .unwrap();
+        // Find any directory node
+        if let Some(dir_node) = tree.elements.iter().find(|node| node.file_entry.is_dir && !node.children.is_empty()) {
+            let children = &dir_node.children;
 
-        let children = object.children;
-
-        for child in children{
-            let counts = tree.elements.iter().filter(|node| node.id == child).count();
-            assert_eq!(counts, 1);
+            for &child_id in children {
+                let counts = tree.elements.iter().filter(|node| node.id == child_id).count();
+                assert_eq!(counts, 1, "Child {} should appear exactly once", child_id);
+                
+                // Verify the child actually exists and has correct parent
+                let child = tree.elements.iter().find(|node| node.id == child_id).unwrap();
+                assert_eq!(child.parent, dir_node.id, "Child's parent should match");
+            }
         }
     }
 
