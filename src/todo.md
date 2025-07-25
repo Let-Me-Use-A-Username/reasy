@@ -1,12 +1,11 @@
 
 # Current
 ### Editor
-#### Editor - FileTree
-- Write better tests for FileTree
-
 ### Editor - FileTree
-- Implement file moving and importing via drag and drop
+- Editor|Layout|Pane are now aware of file `dnd`
+    - Implement UI to show where file will be dropped
 
+- Write better tests for FileTree
 
 <br>
 <br>

@@ -1,5 +1,5 @@
 use core::f32;
-use std::{collections::{HashMap, HashSet}, os::windows::fs::MetadataExt};
+use std::{collections::{HashMap, HashSet}, os::windows::fs::MetadataExt, path::PathBuf};
 
 use egui_tiles::{Tiles, Tree, UiResponse};
 
@@ -129,6 +129,17 @@ impl Pane{
             },
             PaneType::Inspector { .. } => todo!(),
             PaneType::Console { .. } => todo!(),
+            PaneType::Empty => todo!(),
+        }
+    }
+
+    pub(crate) fn file_dropped(&mut self, path: &PathBuf){
+        match &mut self.pane_type{
+            PaneType::FileTree { directory, settings } => {
+                println!("File dropped in filetree: {}", path.display());
+            },
+            PaneType::Inspector { variables, new_key, new_value } => todo!(),
+            PaneType::Console { messages, input } => todo!(),
             PaneType::Empty => todo!(),
         }
     }

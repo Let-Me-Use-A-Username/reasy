@@ -1,6 +1,6 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, path::PathBuf};
 
-use egui::Ui;
+use egui::{DroppedFile, Pos2, Ui};
 use egui_tiles::{TileId, Tree};
 
 use crate::{core::editor::objects::{settings::{EditorSettings, FileTreeSettings}, ui_tree::{create_tree, Pane, PaneKind, PaneType, TreeBehavior}}, utils::error::EditorIoError};
@@ -72,6 +72,32 @@ impl EditorLayout{
                     _ => {}
                 }
                 
+            }
+        }
+    }
+
+    ///Handles and assigns file dropping to panes in ui tree.
+    pub(crate) fn handle_file_drop(&mut self, drop_pos: Pos2, files: &Vec<DroppedFile>){
+        let tiles = &self.tree.tiles.clone();
+
+        //Iterate tile ids
+        for tid in tiles.tile_ids(){
+            //If tile rect contains mouse pointer
+            if tiles.rect(tid).is_some_and(|rect| rect.contains(drop_pos)){
+                if let Some(tile) = self.tree.tiles.get_mut(tid){
+                    match tile{
+                        egui_tiles::Tile::Pane(ref mut pane) => {
+                            for file in files{
+                                if let Some(path) = &file.path{
+                                    pane.file_dropped(path);
+                                }
+                            }
+                        },
+                        egui_tiles::Tile::Container(_) => {
+                            continue;
+                        },
+                    }
+                }
             }
         }
     }

@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
 use egui_winit::State;
@@ -125,7 +126,7 @@ impl ApplicationHandler<UserEvent> for EditorWindow{
                 // applications which do not always need to. Applications that redraw continuously
                 // can render here instead.
                 self.render();
-            },
+            }
             _ => (),
         }
     }
@@ -141,7 +142,7 @@ impl ApplicationHandler<UserEvent> for EditorWindow{
 }
 
 impl EditorWindow{
-     fn render(&mut self) {
+    fn render(&mut self) {
         // Extract components from Option
         let (egui_context, egui_state, egui_renderer, wgpu_state, window, egui_layout, editor_settings) = match (
             self.egui_context.as_ref(),
@@ -160,8 +161,9 @@ impl EditorWindow{
 
         //Retrieve UI input via egui
         let raw_input = egui_state.take_egui_input(window);
+        let dropped_files = &raw_input.dropped_files;
         //Render UI for one frame.
-        let full_output = egui_context.run(raw_input, |ctx| {
+        let full_output = egui_context.run(raw_input.clone(), |ctx| {
             //Top Panel must be build first and seperately from others.
             let ui_changes = egui::TopBottomPanel::top("MenuBar").show(ctx, |ui| {
                 if let Ok(mut settings) = editor_settings.write(){ 
@@ -188,6 +190,12 @@ impl EditorWindow{
             egui::CentralPanel::default().show(ctx, |ui| {
                 egui_layout.ui(ui);
             });
+
+            if !dropped_files.is_empty(){
+                if let Some(drop_pos) = ctx.pointer_interact_pos(){
+                    egui_layout.handle_file_drop(drop_pos, dropped_files);
+                }
+            }
         });
         
         //Handle UI output via Egui
@@ -210,4 +218,5 @@ impl EditorWindow{
         // Request next frame
         window.request_redraw();
     }
+
 }
