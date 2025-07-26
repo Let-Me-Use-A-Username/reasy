@@ -133,14 +133,21 @@ impl Pane{
         }
     }
 
+    #[deprecated(note="WINIT does not *currently* handle file `dnd` from external sources. Therefore this is not stable.")]
     pub(crate) fn file_dropped(&mut self, path: &PathBuf){
         match &mut self.pane_type{
             PaneType::FileTree { directory, settings } => {
                 println!("File dropped in filetree: {}", path.display());
             },
-            PaneType::Inspector { variables, new_key, new_value } => todo!(),
-            PaneType::Console { messages, input } => todo!(),
-            PaneType::Empty => todo!(),
+            PaneType::Inspector { variables, new_key, new_value } => {
+                println!("File dropped in Inspector: {}", path.display());
+            },
+            PaneType::Console { messages, input } => {
+                println!("File dropped in console: {}", path.display());
+            },
+            PaneType::Empty => {
+                println!("File dropped in empty pane: {}", path.display());
+            },
         }
     }
 }
@@ -159,52 +166,50 @@ impl TreeBehavior{
         }
 
         let mut toggled_dirs = Vec::new();
+        
+        egui::ScrollArea::vertical()
+            .max_width(f32::INFINITY)
+            .auto_shrink([false, true])
+            .show(ui, |ui| {
+                //Get TreeNodes from Vec<id>
+                let sorted_display_tree = directory.display_tree.clone();
+                let visible_items = directory.flat_tree.get_children_from_ids(&sorted_display_tree);
+                
+                for element in visible_items {                        
+                    //Note: if hidden are allowed, or if not hidden
+                    let show = settings.show_hidden_elements || (element.file_entry.metadata.file_attributes() & 0x2 == 0);
 
-        ui.vertical(|ui| {
-            egui::ScrollArea::vertical()
-                .max_width(f32::INFINITY)
-                .auto_shrink([false, true])
-                .show(ui, |ui| {
-                    //Get TreeNodes from Vec<id>
-                    let sorted_display_tree = directory.display_tree.clone();
-                    let visible_items = directory.flat_tree.get_children_from_ids(&sorted_display_tree);
-                    
-                    for element in visible_items {
-                        //Note: if hidden are allowed, or if not hidden
-                        let show = settings.show_hidden_elements || (element.file_entry.metadata.file_attributes() & 0x2 == 0);
+                    if show{
+                        let depth = element.depth;
+                        let indent_amount = depth * 20;
+
+                        let element_name = element.file_entry.name.clone();
+                        let is_expanded = element.expanded; 
                         
-                        if show{
-                            let element_name = element.file_entry.name.clone();
-                            let is_expanded = element.expanded; 
-                            let depth = element.depth;
+                        ui.horizontal(|ui| {
+                            // Indentation based on depth
+                            ui.add_space(indent_amount as f32);
                             
-                            let indent_amount = depth * 20;
-                            
-                            ui.horizontal(|ui| {
-                                // Indentation based on depth
-                                ui.add_space(indent_amount as f32);
-                                
-                                if element.file_entry.is_dir {
-                                    let expand_icon = if is_expanded {
-                                        "▼"
-                                    } else {
-                                        "▶"
-                                    };
-                                    
-                                    ui.label(format!("📁 {}", element_name));
-                                    
-                                    if ui.button(expand_icon).clicked() {
-                                        toggled_dirs.push(element.id);
-                                    }
-                                    
+                            if element.file_entry.is_dir {
+                                let expand_icon = if is_expanded {
+                                    "▼"
                                 } else {
-                                    let _response = ui.selectable_label(false, format!("📄 {}", element_name));
+                                    "▶"
+                                };
+                                
+                                let directory_res = ui.selectable_label(false, format!("📁 {}", element_name));
+
+                                if directory_res.clicked() || ui.button(expand_icon).clicked() {
+                                    toggled_dirs.push(element.id);
                                 }
-                            });   
-                        }
-                        
+                                
+                            } else {
+                                let _response = ui.selectable_label(false, format!("📄 {}", element_name));
+                            }
+                        });   
                     }
-            })
+                    
+                }
         });
 
         if !toggled_dirs.is_empty(){

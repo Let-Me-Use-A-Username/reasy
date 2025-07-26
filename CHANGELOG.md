@@ -1,3 +1,13 @@
+# [0.1.13] - 26/7/2025
+
+### Dropped
+- [Editor|EditorLayout|Pane]
+    - Due to unimplemented logic in WINIT regarding file `dnd` (drag and drop), mouse position is not corect, and therefore
+    when doing `dnd` operations, the relative position to the window is false. Therefore this functionality will be *dropped*.
+    Substitution for file operations *MUST* be added in either the *menu or console*
+
+//---------------------------------------------------------------------------------------------------------------------------------//
+
 # [0.1.13] - 25/7/2025
 
 ### Added

@@ -2,16 +2,19 @@
 # Current
 ### Editor
 ### Editor - FileTree
-- Editor|Layout|Pane are now aware of file `dnd`
-    - Implement UI to show where file will be dropped
-
 - Write better tests for FileTree
+
+- Add mouse input for files (left click opens in editor, right click opens menu)
 
 <br>
 <br>
 
 # General
 ### Editor UI
+- Adding files to project will have to be done either
+    - *Top menu*
+    - *Console*
+
 - Implement panes (console, inspector etc)
 
 - Implement editor in middle for file writing/reading(?)

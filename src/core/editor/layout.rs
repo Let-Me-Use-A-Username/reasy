@@ -10,14 +10,16 @@ use crate::{core::editor::objects::{settings::{EditorSettings, FileTreeSettings}
 /// UI handling of lower level UI entities.
 #[derive(Clone)]
 pub(crate) struct EditorLayout{
-    tree: Tree<Pane>
+    tree: Tree<Pane>,
+    pub(crate) dropped_files: Vec<PathBuf>
 }
 impl EditorLayout{
     pub(crate) fn new(editor_settings: EditorSettings) -> Result<EditorLayout, EditorIoError>{
         match create_tree(editor_settings){
             Ok(tree) => {
                 return Ok(EditorLayout{
-                    tree: tree
+                    tree: tree,
+                    dropped_files: Vec::new()
                 })
             },
             Err(err) => return Err(err),
@@ -76,30 +78,49 @@ impl EditorLayout{
         }
     }
 
-    ///Handles and assigns file dropping to panes in ui tree.
-    pub(crate) fn handle_file_drop(&mut self, drop_pos: Pos2, files: &Vec<DroppedFile>){
-        let tiles = &self.tree.tiles.clone();
+    
+    pub(crate) fn file_hovered(&mut self, file: PathBuf){
+        self.dropped_files.push(file.to_path_buf());
+    }
 
-        //Iterate tile ids
-        for tid in tiles.tile_ids(){
-            //If tile rect contains mouse pointer
-            if tiles.rect(tid).is_some_and(|rect| rect.contains(drop_pos)){
-                if let Some(tile) = self.tree.tiles.get_mut(tid){
-                    match tile{
-                        egui_tiles::Tile::Pane(ref mut pane) => {
-                            for file in files{
-                                if let Some(path) = &file.path{
-                                    pane.file_dropped(path);
-                                }
+    pub(crate) fn clear_dropped_list(&mut self){
+        self.dropped_files.clear();
+    }
+
+    #[deprecated(note="WINIT/EGUI does not *currently* handle file `dnd` from external sources.")]
+    pub(crate) fn handle_file_drop(&mut self, drop_pos: &Option<Pos2>){
+        match drop_pos{
+            Some(drop) => {
+                let files = self.dropped_files.clone();
+        
+                let tiles = &self.tree.tiles.clone();
+                //Iterate tile ids
+                for tid in tiles.tile_ids(){
+                    //If tile rect contains mouse pointer
+                    if tiles.rect(tid).is_some_and(|rect| rect.contains(*drop)){
+                        if let Some(tile) = self.tree.tiles.get_mut(tid){
+                            match tile{
+                                egui_tiles::Tile::Pane(ref mut pane) => {
+                                    for file in &files{
+                                        pane.file_dropped(file);
+                                    }
+                                },
+                                egui_tiles::Tile::Container(_) => {
+                                    continue;
+                                },
                             }
-                        },
-                        egui_tiles::Tile::Container(_) => {
-                            continue;
-                        },
+                        }
                     }
                 }
-            }
+
+                self.dropped_files.clear();
+            },
+            None => {
+                eprintln!("Error: No drop position acquired.");
+            },
         }
+        
+
     }
 }
 

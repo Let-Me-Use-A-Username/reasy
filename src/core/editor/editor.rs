@@ -1,7 +1,7 @@
-use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
 use egui_winit::State;
+use winit::dpi::PhysicalPosition;
 use winit::event::WindowEvent;
 use winit::{window::Window};
 use winit::application::ApplicationHandler;
@@ -32,7 +32,9 @@ pub(crate) struct EditorWindow{
     //UI Fields
     egui_layout: Option<EditorLayout>,
     //Settings fields
-    editor_settings: Option<Arc<RwLock<EditorSettings>>>
+    editor_settings: Option<Arc<RwLock<EditorSettings>>>,
+    //
+    user_pointer_pos: Option<PhysicalPosition<f64>>
 }
 
 impl ApplicationHandler<UserEvent> for EditorWindow{
@@ -96,12 +98,15 @@ impl ApplicationHandler<UserEvent> for EditorWindow{
         }
     }
 
-    fn window_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, _window_id: winit::window::WindowId,event: winit::event::WindowEvent) {
+    fn window_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, _window_id: winit::window::WindowId, event: winit::event::WindowEvent) {
         if let (Some(egui_state), Some(window)) = (&mut self.egui_winit_state, &self.window){
             let _ = egui_state.on_window_event(window, &event);
         }
 
         match event {
+            WindowEvent::CursorMoved { position, .. } => {
+                self.user_pointer_pos = Some(position)
+            },
             WindowEvent::Resized(physical_size) => {
                 if let Some(wgpu_state) = &mut self.wgpu_state{
                     wgpu_state.resize(physical_size);
@@ -112,19 +117,30 @@ impl ApplicationHandler<UserEvent> for EditorWindow{
                 event_loop.exit();
             },
             WindowEvent::RedrawRequested => {
-                // Redraw the application.
-                //
-                // It's preferable for applications that do not render continuously to render in
-                // this event rather than in AboutToWait, since rendering in here allows
-                // the program to gracefully handle redraws requested by the OS.
+                self.render();
+            },
+            //DEPRECATED: Not used due to lack of WINIT functionality.
+            WindowEvent::HoveredFile(path) => {
+                //println!("File hovered: {}", path.display());
+                if let Some(layout) = &mut self.egui_layout{
+                    layout.file_hovered(path);
+                }
+            },
+            //DEPRECATED: Not used due to lack of WINIT functionality.
+            WindowEvent::HoveredFileCancelled => {
+                //println!("File hovered cancelled. Dropping files.");
+                if let Some(layout) = &mut self.egui_layout{
+                    layout.clear_dropped_list();
+                }
+            },
+            //DEPRECATED: Not used due to lack of WINIT functionality.
+            WindowEvent::DroppedFile(_) => {
+                //If `dnd`, handle in layout;
+                let egui_pos = &self.convert_to_egui_pos();
 
-                // Draw.
-
-                // Queue a RedrawRequested event.
-                //
-                // You only need to call this if you've determined that you need to redraw in
-                // applications which do not always need to. Applications that redraw continuously
-                // can render here instead.
+                if let Some(layout) = &mut self.egui_layout{
+                    layout.handle_file_drop(egui_pos);
+                }
                 self.render();
             }
             _ => (),
@@ -161,23 +177,23 @@ impl EditorWindow{
 
         //Retrieve UI input via egui
         let raw_input = egui_state.take_egui_input(window);
-        let dropped_files = &raw_input.dropped_files;
         //Render UI for one frame.
         let full_output = egui_context.run(raw_input.clone(), |ctx| {
             //Top Panel must be build first and seperately from others.
+            //Collect *UI* Changes performed in top menu
             let ui_changes = egui::TopBottomPanel::top("MenuBar").show(ctx, |ui| {
-                if let Ok(mut settings) = editor_settings.write(){ 
+                if let Ok(mut settings) = editor_settings.try_write(){ 
                     let mut menu = EditorMenu{};
                     menu.ui(ui, &mut settings)
                 }
                 else {
+                    eprintln!("Error: Could not acquire settings");
                     None
                 }
             });
-
             //If UI changes, reload layout
             if ui_changes.inner.is_some(){
-                if let Ok(settings) = editor_settings.read(){
+                if let Ok(settings) = editor_settings.try_read(){
                     egui_layout.reload(
                         ui_changes.inner.unwrap(),
                         &settings
@@ -190,12 +206,6 @@ impl EditorWindow{
             egui::CentralPanel::default().show(ctx, |ui| {
                 egui_layout.ui(ui);
             });
-
-            if !dropped_files.is_empty(){
-                if let Some(drop_pos) = ctx.pointer_interact_pos(){
-                    egui_layout.handle_file_drop(drop_pos, dropped_files);
-                }
-            }
         });
         
         //Handle UI output via Egui
@@ -219,4 +229,20 @@ impl EditorWindow{
         window.request_redraw();
     }
 
+    fn convert_to_egui_pos(&self) -> Option<egui::Pos2>{
+        let physical_pos = self.user_pointer_pos?;
+        let window = self.window.as_ref()?;
+        let ctx = self.egui_context.as_ref()?;
+
+        let scale = window.scale_factor();
+        let ppp = ctx.pixels_per_point();
+
+        let logic_x = physical_pos.x / scale;
+        let logic_y = physical_pos.y / scale;
+
+        let egui_x = (logic_x as f32) / ppp;
+        let egui_y = (logic_y as f32) / ppp;
+
+        return Some(egui::Pos2 { x: egui_x, y: egui_y })
+    }
 }
