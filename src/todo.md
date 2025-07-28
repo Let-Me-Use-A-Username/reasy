@@ -2,9 +2,8 @@
 # Current
 ### Editor
 ### Editor - FileTree
-- Write better tests for FileTree
-
 - Add mouse input for files (left click opens in editor, right click opens menu)
+    - TODO: Fix renaming operation
 
 <br>
 <br>
@@ -14,10 +13,10 @@
 - Adding files to project will have to be done either
     - *Top menu*
     - *Console*
+    - *IDEA* Drop zone / pop up
+        -https://claude.ai/chat/7bf6c484-3682-42c6-a43a-76a2c3dee785
 
-- Implement panes (console, inspector etc)
-
-- Implement editor in middle for file writing/reading(?)
+- Implement panes (console, inspector, editor in middle for file writing/reading OR scene manager)
 
 - Implement `user new project` to test file_tree, global settings, local user settings
     - User project paths, will be paths that hold data similar to .vscode

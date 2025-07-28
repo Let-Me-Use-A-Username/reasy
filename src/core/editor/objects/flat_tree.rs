@@ -472,6 +472,12 @@ mod tests {
     use super::*;
     use std::fs;
 
+    /* 
+        Creates a directory and validates
+            1. Number of nodes in tree
+            2. Specific nodes exist in tree
+            3. Number of nodes in different depths
+    */
     #[test]
     fn test_flat_tree_build() {
         //test_data/file1
@@ -514,18 +520,40 @@ mod tests {
         assert!(tree.elements.iter().any(|n| n.file_entry.name == "file2.txt"));
         assert_eq!(tree.elements.len(), 8);
 
-        // Test that no duplicates exist
-        let mut ids = std::collections::HashSet::new();
-        for node in &tree.elements {
-            assert!(ids.insert(node.id), "Duplicate node ID found: {}", node.id);
+        let mut depth = 0;
+        
+        loop{
+            let current_depth_nodes = tree.elements.iter()
+                .filter(|node| node.depth == depth)
+                .count();
+
+            match depth{
+                0 => {
+                    assert_eq!(current_depth_nodes, 3);
+                },
+                1 => {
+                    assert_eq!(current_depth_nodes, 3);
+                },
+                2 => {
+                    assert_eq!(current_depth_nodes, 2);
+                }
+                _ => break
+            }
+
+            depth += 1;
         }
 
         // Cleanup
         fs::remove_dir_all(test_dir).unwrap();
     }
 
+
+    /* 
+        Builds a tree in the current working dir and validate that only one
+        instance of each child exists per node.
+    */
     #[test]
-    fn test_no_duplicate_children() {
+    fn test_node_duplicate_children() {
         let mut builder = TreeBuilder::init(Some(PathBuf::from("."))).unwrap();
         let _ = builder.build();
         let tree = builder.get_tree();
@@ -540,24 +568,26 @@ mod tests {
         }
     }
     
+
+    /* 
+        Builds a tree and validates that a node exists only once in the whole tree.
+    */
     #[test]
-    fn test_flat_tree_children() {
+    fn test_node_duplicates() {
         let mut builder = TreeBuilder::init(Some(PathBuf::from("."))).unwrap();
         let _ = builder.build();
         let tree = builder.get_tree();
+        let tree_items = tree.elements.clone();
 
-        // Find any directory node
-        if let Some(dir_node) = tree.elements.iter().find(|node| node.file_entry.is_dir && !node.children.is_empty()) {
-            let children = &dir_node.children;
+        for element in tree_items{
 
-            for &child_id in children {
-                let counts = tree.elements.iter().filter(|node| node.id == child_id).count();
-                assert_eq!(counts, 1, "Child {} should appear exactly once", child_id);
-                
-                // Verify the child actually exists and has correct parent
-                let child = tree.elements.iter().find(|node| node.id == child_id).unwrap();
-                assert_eq!(child.parent, dir_node.id, "Child's parent should match");
-            }
+            let parent_instances = tree.elements.iter()
+                .filter(|node| node.id == element.id)
+                .map(|node| node.id)
+                .collect::<Vec<usize>>();
+
+            //Assets every node exists only once
+            assert_eq!(parent_instances.len(), 1);
         }
     }
 

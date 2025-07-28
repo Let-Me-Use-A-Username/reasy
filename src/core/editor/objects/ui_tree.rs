@@ -15,7 +15,8 @@ use crate::{core::editor::objects::{flat_tree::{FlatTree, TreeBuilder}, settings
 #[derive(Debug, Clone)]
 pub(crate) struct UiDirectory{
     flat_tree: FlatTree,
-    display_tree: Vec<usize>
+    display_tree: Vec<usize>,
+    operations: Vec<UIDOperation>
 }
 impl UiDirectory{
     pub(crate) fn reload(&mut self, show_hidden: bool){
@@ -62,6 +63,29 @@ impl UiDirectory{
         
         self.display_tree = display_tree;
     }
+
+    pub(crate) fn queue_operation(&mut self, operation: UIDOperation){
+        //If operation already included, skip it
+        if let Some(_) = self.operations.iter().find(|op| op == &&operation){
+            return;
+        }
+        self.operations.push(operation);
+    }
+
+    pub(crate) fn execute_operations(&mut self){
+        while let Some(operation) = self.operations.pop(){
+            match operation{
+                UIDOperation::RENAME(id, new_name) => todo!(),
+                UIDOperation::DELETE(id) => todo!(),
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub(crate) enum UIDOperation{
+    RENAME(usize, String),
+    DELETE(usize)
 }
 
 ///Enum used mainly by the Layout-Menu handlers
@@ -136,13 +160,13 @@ impl Pane{
     #[deprecated(note="WINIT does not *currently* handle file `dnd` from external sources. Therefore this is not stable.")]
     pub(crate) fn file_dropped(&mut self, path: &PathBuf){
         match &mut self.pane_type{
-            PaneType::FileTree { directory, settings } => {
+            PaneType::FileTree { .. } => {
                 println!("File dropped in filetree: {}", path.display());
             },
-            PaneType::Inspector { variables, new_key, new_value } => {
+            PaneType::Inspector { .. } => {
                 println!("File dropped in Inspector: {}", path.display());
             },
-            PaneType::Console { messages, input } => {
+            PaneType::Console { .. } => {
                 println!("File dropped in console: {}", path.display());
             },
             PaneType::Empty => {
@@ -166,24 +190,26 @@ impl TreeBehavior{
         }
 
         let mut toggled_dirs = Vec::new();
+        let mut ui_operations = Vec::new();
         
         egui::ScrollArea::vertical()
             .max_width(f32::INFINITY)
             .auto_shrink([false, true])
             .show(ui, |ui| {
                 //Get TreeNodes from Vec<id>
-                let sorted_display_tree = directory.display_tree.clone();
+                let sorted_display_tree = directory.display_tree;
                 let visible_items = directory.flat_tree.get_children_from_ids(&sorted_display_tree);
                 
                 for element in visible_items {                        
-                    //Note: if hidden are allowed, or if not hidden
+                    //Show element
                     let show = settings.show_hidden_elements || (element.file_entry.metadata.file_attributes() & 0x2 == 0);
 
                     if show{
                         let depth = element.depth;
                         let indent_amount = depth * 20;
 
-                        let element_name = element.file_entry.name.clone();
+                        let element_id = element.id.clone();
+                        let element_name = &element.file_entry.name;
                         let is_expanded = element.expanded; 
                         
                         ui.horizontal(|ui| {
@@ -196,15 +222,55 @@ impl TreeBehavior{
                                 } else {
                                     "▶"
                                 };
-                                
-                                let directory_res = ui.selectable_label(false, format!("📁 {}", element_name));
 
-                                if directory_res.clicked() || ui.button(expand_icon).clicked() {
+                                let dir_button = ui.add(
+                                    egui::Button::new(format!("📁 {}", element_name))
+                                    .frame(false)
+                                    .sense(egui::Sense::click())
+                                );
+
+                                if dir_button.clicked() || ui.button(expand_icon).clicked(){
                                     toggled_dirs.push(element.id);
                                 }
+
+                                dir_button.context_menu(|ui| {
+                                    //TODO: Add operation
+                                    //Directory rename operation
+                                    ui.menu_button("Rename", |ui| {
+                                        let response = ui.add(egui::TextEdit::singleline(element_name));
+                                        
+                                        if response.changed(){
+                                            println!("changed name")
+                                        }
+                                    });
+                                    //Directory delete operation
+                                    if ui.button("Delete").clicked() {
+                                        ui_operations.push(UIDOperation::DELETE(element_id));
+                                        ui.close_menu();
+                                    }
+                                });
                                 
-                            } else {
-                                let _response = ui.selectable_label(false, format!("📄 {}", element_name));
+                            } 
+                            else {
+                                let file_button = ui.add(
+                                    egui::Button::new(format!("📄 {}", element_name))
+                                    .frame(false)
+                                    .sense(egui::Sense::click())
+                                );
+
+                                file_button.context_menu(|ui| {
+                                    //File rename operation
+                                    if ui.button("Rename").clicked() {
+                                        //TODO: Add operation
+                                        println!("Rename: {}", element_name);
+                                        ui.close_menu();
+                                    }
+                                    //File delete operation
+                                    if ui.button("Delete").clicked() {
+                                        ui_operations.push(UIDOperation::DELETE(element_id));
+                                        ui.close_menu();
+                                    }
+                                });
                             }
                         });   
                     }
@@ -225,6 +291,11 @@ impl TreeBehavior{
                 .collect();
 
             directory.display_tree = new_sorted;
+        }
+
+        //Queue directory operations
+        for op in ui_operations{
+            directory.queue_operation(op);
         }
         
         //If tile was dragged, return response, else return None.
@@ -416,6 +487,7 @@ pub(crate) fn create_tree(settings: EditorSettings) -> Result<egui_tiles::Tree<P
         UiDirectory { 
             flat_tree: tree,
             display_tree: visible,
+            operations: Vec::new()
         }
     };
 

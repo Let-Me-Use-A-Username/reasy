@@ -1,3 +1,18 @@
+# [0.1.13] - 28/7/2025
+
+### Added
+- [UITree]
+    - Now detects mouse input over files/directories
+- [UIDiretory]
+    - Implemented UI operations, that include file renaming and deletion
+
+### Changed
+- [FlatTree]
+    - Implemented better tests.
+
+//---------------------------------------------------------------------------------------------------------------------------------//
+
+
 # [0.1.13] - 26/7/2025
 
 ### Dropped

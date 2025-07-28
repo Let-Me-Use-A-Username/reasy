@@ -1,6 +1,6 @@
 use std::{collections::HashSet, path::PathBuf};
 
-use egui::{DroppedFile, Pos2, Ui};
+use egui::{Pos2, Ui};
 use egui_tiles::{TileId, Tree};
 
 use crate::{core::editor::objects::{settings::{EditorSettings, FileTreeSettings}, ui_tree::{create_tree, Pane, PaneKind, PaneType, TreeBehavior}}, utils::error::EditorIoError};
