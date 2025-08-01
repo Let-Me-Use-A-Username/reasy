@@ -2,8 +2,10 @@
 # Current
 ### Editor
 ### Editor - FileTree
-- Add mouse input for files (left click opens in editor, right click opens menu)
-    - TODO: Fix renaming operation
+- Remove and Rename operations are not submitted to the files below.
+    - *Idea*:
+        - Place a *modified* bit on NodeTree entries, collect modified entries and write them via IO
+        - Execute asynchronously 
 
 <br>
 <br>

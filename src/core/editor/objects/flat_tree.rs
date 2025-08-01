@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use std::hash::{DefaultHasher, Hasher};
 use std::sync::Arc;
 use std::{env, fmt};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::hash::Hash;
 
 use crate::utils::error::ErrorType;
@@ -337,6 +337,69 @@ impl FlatTree{
         canonical_path.hash(&mut hasher);
 
         return hasher.finish() as usize
+    }
+
+    ///Removes a node based on ID.
+    pub(crate) fn remove(&mut self, id: usize) -> Option<TreeNode>{
+        if let Some(node_pos) = self.lookup.get(&id){
+            let node = self.elements.remove(*node_pos);
+
+            if node.file_entry.is_dir{
+                for child in &node.children{
+                    self.remove(*child);
+                }
+            }
+            self.rebuild_index();
+
+            return Some(node)
+        }
+
+        return None
+    }
+
+    ///Renames a node, also changes its path, and if directory changes children parent path and their path.
+    pub(crate) fn rename(&mut self, id: usize, new_name: &String) -> Option<String>{
+        let mut nodes_to_change = Vec::new();
+        let mut new_parent_path = None;
+        let mut old_name = None;
+
+        if let Some(node_pos) = self.lookup.get(&id){
+            if let Some(node) = self.elements.get_mut(*node_pos){
+                //Change node's name and path
+                let new_path = Path::new(&node.file_entry.parent).join(&new_name);
+                old_name = Some(node.file_entry.path.display().to_string());
+                node.file_entry.name = new_name.to_string();
+                node.file_entry.path = new_path.clone();
+
+                if node.file_entry.is_dir{
+                    for child in node.children.clone(){
+                        nodes_to_change.push(child);
+                    }
+                    new_parent_path = Some(new_path);
+                }
+            }
+        }
+
+        //If node is dir, change children parent and path.
+        if let Some(path) = new_parent_path{
+            for child in nodes_to_change{
+                self.rename_parent(child, &path);
+            }
+        }
+
+        return old_name
+    }
+
+    ///Renames a child component who's parent has been renamed.
+    fn rename_parent(&mut self, id: usize, new_parent_path: &PathBuf){
+        if let Some(node_pos) = self.lookup.get(&id){
+            if let Some(node) = self.elements.get_mut(*node_pos){
+                let new_path = Path::new(&new_parent_path).join(&node.file_entry.name);
+                //Assign new child path and parent path
+                node.file_entry.path = new_path.clone();
+                node.file_entry.parent = new_parent_path.display().to_string();
+            }
+        }
     }
 }
 

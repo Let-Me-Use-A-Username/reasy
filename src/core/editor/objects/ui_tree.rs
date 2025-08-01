@@ -16,10 +16,11 @@ use crate::{core::editor::objects::{flat_tree::{FlatTree, TreeBuilder}, settings
 pub(crate) struct UiDirectory{
     flat_tree: FlatTree,
     display_tree: Vec<usize>,
-    operations: Vec<UIDOperation>
+    operations: Vec<UIDOperation>,
+    pub(crate) user_input: Option<String>
 }
 impl UiDirectory{
-    pub(crate) fn reload(&mut self, show_hidden: bool){
+    pub(crate) fn reload(&mut self, settings: FileTreeSettings){
         let visible_nodes = self.flat_tree.get_visible_items();
         
         let mut dirs_to_collapse = Vec::new();
@@ -27,7 +28,7 @@ impl UiDirectory{
         //First pass for dir collection
         for node in visible_nodes.iter() {
             let is_hidden = node.file_entry.metadata.file_attributes() & 0x2 != 0;
-            let show = show_hidden || !is_hidden;
+            let show = settings.show_hidden_elements || !is_hidden;
             
             //If node is dir, is expanded and shouldn't be visible, toggle it
             if !show && node.file_entry.is_dir && node.expanded {
@@ -49,13 +50,8 @@ impl UiDirectory{
         
         for node in updated_visible_nodes.iter() {
             
-            //Add all root items
-            if node.depth == 0 {
-                display_tree.push(node.id);
-                visible_parent_ids.insert(node.id);
-            }
-            //Add children items that have a visible parent
-            else if visible_parent_ids.contains(&node.parent) {
+            //IF root depth, or has visible parent 
+            if node.depth == 0 || visible_parent_ids.contains(&node.parent){
                 display_tree.push(node.id);
                 visible_parent_ids.insert(node.id);
             }
@@ -72,11 +68,20 @@ impl UiDirectory{
         self.operations.push(operation);
     }
 
+    ///Executes operation queue. Manual reloading is needed after to apply changes.
     pub(crate) fn execute_operations(&mut self){
         while let Some(operation) = self.operations.pop(){
             match operation{
-                UIDOperation::RENAME(id, new_name) => todo!(),
-                UIDOperation::DELETE(id) => todo!(),
+                UIDOperation::RENAME(id, new_name) => {
+                    if let Some(old_name) = self.flat_tree.rename(id, &new_name){
+                        println!("Renamed node: {} from {} to {}", id, old_name, new_name);
+                    }
+                },
+                UIDOperation::DELETE(id) => {
+                    if let Some(node) = self.flat_tree.remove(id){
+                        println!("Removed node: {}", node.file_entry.path.display());
+                    }
+                },
             }
         }
     }
@@ -145,11 +150,12 @@ impl Pane{
         return &self.pane_type
     }
 
+    ///Function that sets new settings from `Menu` by reloading pane and underlying components.
     pub(crate) fn reload_with_settings(&mut self, new_settings: FileTreeSettings){
         match &mut self.pane_type {
             PaneType::FileTree { directory, settings } => {
                 *settings = new_settings.clone();
-                directory.reload(new_settings.show_hidden_elements);
+                directory.reload(new_settings);
             },
             PaneType::Inspector { .. } => todo!(),
             PaneType::Console { .. } => todo!(),
@@ -197,7 +203,7 @@ impl TreeBehavior{
             .auto_shrink([false, true])
             .show(ui, |ui| {
                 //Get TreeNodes from Vec<id>
-                let sorted_display_tree = directory.display_tree;
+                let sorted_display_tree = &directory.display_tree;
                 let visible_items = directory.flat_tree.get_children_from_ids(&sorted_display_tree);
                 
                 for element in visible_items {                        
@@ -234,13 +240,22 @@ impl TreeBehavior{
                                 }
 
                                 dir_button.context_menu(|ui| {
-                                    //TODO: Add operation
                                     //Directory rename operation
                                     ui.menu_button("Rename", |ui| {
-                                        let response = ui.add(egui::TextEdit::singleline(element_name));
+                                        let mut user_buffer= directory.user_input.clone().unwrap_or(String::new());
+
+                                        let response = ui.add(egui::TextEdit::singleline(&mut user_buffer)
+                                            .hint_text(element_name));
                                         
+                                        //Save changes in UIDirectory
                                         if response.changed(){
-                                            println!("changed name")
+                                            directory.user_input = Some(user_buffer)
+                                        }
+                                        //If lost focus (enter pressed) push operation
+                                        else if response.lost_focus(){
+                                            ui_operations.push(UIDOperation::RENAME(element_id, directory.user_input.clone().unwrap_or(user_buffer)));
+                                            directory.user_input = None;
+                                            ui.close_menu();
                                         }
                                     });
                                     //Directory delete operation
@@ -260,11 +275,23 @@ impl TreeBehavior{
 
                                 file_button.context_menu(|ui| {
                                     //File rename operation
-                                    if ui.button("Rename").clicked() {
-                                        //TODO: Add operation
-                                        println!("Rename: {}", element_name);
-                                        ui.close_menu();
-                                    }
+                                    ui.menu_button("Rename", |ui| {
+                                        let mut user_buffer= directory.user_input.clone().unwrap_or(String::new());
+
+                                        let response = ui.add(egui::TextEdit::singleline(&mut user_buffer)
+                                            .hint_text(element_name));
+                                        
+                                        //Save changes in UIDirectory
+                                        if response.changed(){
+                                            directory.user_input = Some(user_buffer)
+                                        }
+                                        //If lost focus (enter pressed) push operation
+                                        else if response.lost_focus(){
+                                            ui_operations.push(UIDOperation::RENAME(element_id, directory.user_input.clone().unwrap_or(user_buffer)));
+                                            directory.user_input = None;
+                                            ui.close_menu();
+                                        }
+                                    });
                                     //File delete operation
                                     if ui.button("Delete").clicked() {
                                         ui_operations.push(UIDOperation::DELETE(element_id));
@@ -454,6 +481,9 @@ impl egui_tiles::Behavior<Pane> for TreeBehavior {
     fn pane_ui(&mut self, ui: &mut egui::Ui, _tile_id: egui_tiles::TileId, pane: &mut Pane) -> egui_tiles::UiResponse {
         match &mut pane.pane_type{
             PaneType::FileTree { directory, settings} => {
+                //Execute operations and reload directory (NOT PANE)
+                directory.execute_operations();
+                directory.reload(settings.clone());
                 self.render_file_tree(ui, directory, settings)
             },
             PaneType::Inspector { variables, new_key, new_value } => {
@@ -487,7 +517,8 @@ pub(crate) fn create_tree(settings: EditorSettings) -> Result<egui_tiles::Tree<P
         UiDirectory { 
             flat_tree: tree,
             display_tree: visible,
-            operations: Vec::new()
+            operations: Vec::new(),
+            user_input: None
         }
     };
 
